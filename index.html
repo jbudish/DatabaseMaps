@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Property Map</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<style>
+  :root {
+    --ink: #1c2530;
+    --ink-soft: #55606c;
+    --line: #dde2e7;
+    --panel: #fbfbfa;
+    --accent: #2c5f6f;
+    --accent-soft: #e5eef0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font-family: -apple-system, "Segoe UI", Inter, Arial, sans-serif; color: var(--ink); }
+
+  #app { display: flex; height: 100%; }
+
+  #sidebar {
+    width: 300px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    padding: 20px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    overflow-y: auto;
+  }
+
+  #sidebar h1 {
+    font-size: 17px;
+    font-weight: 650;
+    margin: 0 0 2px;
+    letter-spacing: -0.01em;
+  }
+  #count {
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  #count strong { color: var(--ink); font-weight: 650; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label {
+    font-size: 11px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+  }
+  select, input[type="text"] {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--ink);
+    outline: none;
+  }
+  select:focus, input[type="text"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  #reset {
+    align-self: flex-start;
+    font-size: 12.5px;
+    color: var(--accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-weight: 600;
+  }
+  #reset:hover { text-decoration: underline; }
+
+  #map { flex: 1; position: relative; }
+
+  .maplibregl-popup-content {
+    font-family: inherit;
+    font-size: 13px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(28,37,48,0.15);
+  }
+  .popup-owner { font-weight: 650; margin-bottom: 2px; }
+  .popup-city { color: var(--ink-soft); }
+
+  #loading {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: var(--ink-soft);
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="sidebar">
+    <div>
+      <h1>Property Map</h1>
+      <div id="count">Loading…</div>
+    </div>
+
+    <div class="field">
+      <label for="city-filter">City</label>
+      <select id="city-filter">
+        <option value="">All cities</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="owner-filter">Owner contains</label>
+      <input type="text" id="owner-filter" placeholder="e.g. Murtaugh" />
+    </div>
+
+    <button id="reset">Clear filters</button>
+  </div>
+
+  <div id="map">
+    <div id="loading">Loading properties…</div>
+  </div>
+</div>
+
+<script>
+const DATA_URL = "data/properties.json";
+
+let allProperties = [];
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: "https://tiles.openfreemap.org/styles/liberty",
+  center: [-93.2, 44.9],
+  zoom: 8
+});
+
+map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+map.on("load", async () => {
+  const res = await fetch(DATA_URL);
+  allProperties = await res.json();
+
+  document.getElementById("loading").style.display = "none";
+
+  map.addSource("properties", {
+    type: "geojson",
+    data: toGeoJSON(allProperties),
+    cluster: true,
+    clusterMaxZoom: 14,
+    clusterRadius: 45
+  });
+
+  map.addLayer({
+    id: "clusters",
+    type: "circle",
+    source: "properties",
+    filter: ["has", "point_count"],
+    paint: {
+      "circle-color": [
+        "step", ["get", "point_count"],
+        "#8fb7c2", 25,
+        "#5b95a3", 100,
+        "#2c5f6f", 500,
+        "#1c3e48"
+      ],
+      "circle-radius": [
+        "step", ["get", "point_count"],
+        14, 25,
+        18, 100,
+        24, 500,
+        30
+      ],
+      "circle-stroke-width": 2,
+      "circle-stroke-color": "#ffffff"
+    }
+  });
+
+  map.addLayer({
+    id: "cluster-count",
+    type: "symbol",
+    source: "properties",
+    filter: ["has", "point_count"],
+    layout: {
+      "text-field": ["get", "point_count_abbreviated"],
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 12
+    },
+    paint: { "text-color": "#ffffff" }
+  });
+
+  map.addLayer({
+    id: "unclustered-point",
+    type: "circle",
+    source: "properties",
+    filter: ["!", ["has", "point_count"]],
+    paint: {
+      "circle-color": "#2c5f6f",
+      "circle-radius": 6,
+      "circle-stroke-width": 2,
+      "circle-stroke-color": "#ffffff"
+    }
+  });
+
+  map.on("click", "clusters", (e) => {
+    const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+    const clusterId = features[0].properties.cluster_id;
+    map.getSource("properties").getClusterExpansionZoom(clusterId, (err, zoom) => {
+      if (err) return;
+      map.easeTo({ center: features[0].geometry.coordinates, zoom });
+    });
+  });
+
+  map.on("click", "unclustered-point", (e) => {
+    const f = e.features[0];
+    const coords = f.geometry.coordinates.slice();
+    const { owner, city } = f.properties;
+    new maplibregl.Popup({ offset: 10 })
+      .setLngLat(coords)
+      .setHTML(
+        `<div class="popup-owner">${escapeHTML(owner || "Unknown owner")}</div>
+         <div class="popup-city">${escapeHTML(city || "")}</div>`
+      )
+      .addTo(map);
+  });
+
+  ["clusters", "unclustered-point"].forEach((layer) => {
+    map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
+    map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
+  });
+
+  populateCityFilter(allProperties);
+  updateCount(allProperties.length, allProperties.length);
+});
+
+function toGeoJSON(props) {
+  return {
+    type: "FeatureCollection",
+    features: props.map((p) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+      properties: { id: p.id, owner: p.owner, city: p.city }
+    }))
+  };
+}
+
+function populateCityFilter(props) {
+  const cities = [...new Set(props.map((p) => p.city).filter(Boolean))].sort();
+  const select = document.getElementById("city-filter");
+  for (const c of cities) {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = c;
+    select.appendChild(opt);
+  }
+}
+
+function updateCount(shown, total) {
+  document.getElementById("count").innerHTML =
+    shown === total
+      ? `<strong>${total.toLocaleString()}</strong> properties`
+      : `<strong>${shown.toLocaleString()}</strong> of ${total.toLocaleString()} properties`;
+}
+
+function applyFilters() {
+  const city = document.getElementById("city-filter").value;
+  const ownerQuery = document.getElementById("owner-filter").value.trim().toLowerCase();
+
+  const filtered = allProperties.filter((p) => {
+    if (city && p.city !== city) return false;
+    if (ownerQuery && !(p.owner || "").toLowerCase().includes(ownerQuery)) return false;
+    return true;
+  });
+
+  map.getSource("properties").setData(toGeoJSON(filtered));
+  updateCount(filtered.length, allProperties.length);
+}
+
+function escapeHTML(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById("city-filter").addEventListener("change", applyFilters);
+document.getElementById("owner-filter").addEventListener("input", applyFilters);
+document.getElementById("reset").addEventListener("click", () => {
+  document.getElementById("city-filter").value = "";
+  document.getElementById("owner-filter").value = "";
+  applyFilters();
+});
+</script>
+
+</body>
+</html>
