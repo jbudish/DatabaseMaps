@@ -162,6 +162,14 @@
     </div>
 
     <div class="field">
+      <label>Units</label>
+      <div class="range-row">
+        <input type="number" id="units-min" placeholder="Min" />
+        <input type="number" id="units-max" placeholder="Max" />
+      </div>
+    </div>
+
+    <div class="field">
       <label for="owner-filter">Owner contains</label>
       <input type="text" id="owner-filter" placeholder="e.g. Murtaugh" />
     </div>
@@ -295,7 +303,7 @@ map.on("load", async () => {
     `).join("");
 
     const link = p.yardiLink
-      ? `<a class="popup-link" href="${escapeAttr(p.yardiLink)}" target="_blank" rel="noopener">View in Yardi →</a>`
+      ? `<a class="popup-link" href="${escapeAttr(normalizeUrl(p.yardiLink))}" target="_blank" rel="noopener">View in Yardi →</a>`
       : "";
 
     new maplibregl.Popup({ offset: 10 })
@@ -370,6 +378,11 @@ function formatCurrency(value) {
   return `$${n.toFixed(0)}`;
 }
 
+function normalizeUrl(url) {
+  if (!url) return "#";
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
 function applyFilters() {
   const type = document.getElementById("type-filter").value;
   const submarket = document.getElementById("submarket-filter").value;
@@ -378,6 +391,8 @@ function applyFilters() {
   const broker = document.getElementById("broker-filter").value;
   const yearMin = document.getElementById("year-min").value;
   const yearMax = document.getElementById("year-max").value;
+  const unitsMin = document.getElementById("units-min").value;
+  const unitsMax = document.getElementById("units-max").value;
   const ownerQuery = document.getElementById("owner-filter").value.trim().toLowerCase();
   const closeDays = document.getElementById("close-filter").value;
 
@@ -395,6 +410,8 @@ function applyFilters() {
     if (broker && p.brokerSeller !== broker) return false;
     if (yearMin && (!p.yearBuilt || p.yearBuilt < parseInt(yearMin, 10))) return false;
     if (yearMax && (!p.yearBuilt || p.yearBuilt > parseInt(yearMax, 10))) return false;
+    if (unitsMin && (!p.units || p.units < parseInt(unitsMin, 10))) return false;
+    if (unitsMax && (!p.units || p.units > parseInt(unitsMax, 10))) return false;
     if (ownerQuery && !(p.owner || "").toLowerCase().includes(ownerQuery)) return false;
     if (closeCutoff) {
       if (!p.close) return false;
@@ -419,7 +436,7 @@ function escapeAttr(str) {
 
 [
   "type-filter", "submarket-filter", "city-filter", "stage-filter", "broker-filter",
-  "year-min", "year-max", "owner-filter", "close-filter"
+  "year-min", "year-max", "units-min", "units-max", "owner-filter", "close-filter"
 ].forEach((id) => {
   const el = document.getElementById(id);
   el.addEventListener(el.tagName === "SELECT" ? "change" : "input", applyFilters);
@@ -431,6 +448,8 @@ document.getElementById("reset").addEventListener("click", () => {
   );
   document.getElementById("year-min").value = "";
   document.getElementById("year-max").value = "";
+  document.getElementById("units-min").value = "";
+  document.getElementById("units-max").value = "";
   document.getElementById("owner-filter").value = "";
   document.getElementById("close-filter").value = "";
   applyFilters();
