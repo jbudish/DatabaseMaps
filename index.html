@@ -12,8 +12,8 @@
     --ink-soft: #55606c;
     --line: #dde2e7;
     --panel: #fbfbfa;
-    --accent: #2c5f6f;
-    --accent-soft: #e5eef0;
+    --accent: #bf5700;
+    --accent-soft: #fbe9dc;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; font-family: -apple-system, "Segoe UI", Inter, Arial, sans-serif; color: var(--ink); }
@@ -21,14 +21,14 @@
   #app { display: flex; height: 100%; }
 
   #sidebar {
-    width: 300px;
+    width: 320px;
     flex-shrink: 0;
     background: var(--panel);
     border-right: 1px solid var(--line);
-    padding: 20px 20px 16px;
+    padding: 20px 20px 20px;
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 16px;
     overflow-y: auto;
   }
 
@@ -44,6 +44,18 @@
   }
   #count strong { color: var(--ink); font-weight: 650; }
 
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin: 4px 0 -4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .section-label:first-of-type { border-top: none; padding-top: 0; }
+
   .field { display: flex; flex-direction: column; gap: 6px; }
   .field label {
     font-size: 11px;
@@ -52,7 +64,10 @@
     letter-spacing: 0.04em;
     color: var(--ink-soft);
   }
-  select, input[type="text"] {
+  .range-row { display: flex; gap: 8px; }
+  .range-row input { width: 100%; }
+
+  select, input[type="text"], input[type="number"] {
     font-family: inherit;
     font-size: 14px;
     padding: 8px 10px;
@@ -62,7 +77,7 @@
     color: var(--ink);
     outline: none;
   }
-  select:focus, input[type="text"]:focus {
+  select:focus, input:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-soft);
   }
@@ -84,12 +99,24 @@
   .maplibregl-popup-content {
     font-family: inherit;
     font-size: 13px;
-    padding: 12px 14px;
+    padding: 14px 16px;
     border-radius: 8px;
     box-shadow: 0 6px 24px rgba(28,37,48,0.15);
+    min-width: 200px;
   }
-  .popup-owner { font-weight: 650; margin-bottom: 2px; }
-  .popup-city { color: var(--ink-soft); }
+  .popup-name { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .popup-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  .popup-row .k { color: var(--ink-soft); }
+  .popup-row .v { font-weight: 600; text-align: right; }
+  .popup-link {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 12.5px;
+    font-weight: 650;
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .popup-link:hover { text-decoration: underline; }
 
   #loading {
     position: absolute;
@@ -115,14 +142,44 @@
 
     <div class="field">
       <label for="city-filter">City</label>
-      <select id="city-filter">
-        <option value="">All cities</option>
-      </select>
+      <select id="city-filter"><option value="">All cities</option></select>
     </div>
 
     <div class="field">
       <label for="owner-filter">Owner contains</label>
       <input type="text" id="owner-filter" placeholder="e.g. Murtaugh" />
+    </div>
+
+    <div class="section-label">Property details</div>
+
+    <div class="field">
+      <label for="type-filter">Type</label>
+      <select id="type-filter"><option value="">All types</option></select>
+    </div>
+
+    <div class="field">
+      <label for="submarket-filter">Submarket</label>
+      <select id="submarket-filter"><option value="">All submarkets</option></select>
+    </div>
+
+    <div class="field">
+      <label>Year built</label>
+      <div class="range-row">
+        <input type="number" id="year-min" placeholder="Min" />
+        <input type="number" id="year-max" placeholder="Max" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="close-filter">Close date</label>
+      <select id="close-filter">
+        <option value="">Any time</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="180">Last 6 months</option>
+        <option value="365">Last year</option>
+        <option value="730">Last 2 years</option>
+      </select>
     </div>
 
     <button id="reset">Clear filters</button>
@@ -169,10 +226,10 @@ map.on("load", async () => {
     paint: {
       "circle-color": [
         "step", ["get", "point_count"],
-        "#8fb7c2", 25,
-        "#5b95a3", 100,
-        "#2c5f6f", 500,
-        "#1c3e48"
+        "#f2b988", 25,
+        "#e08e4f", 100,
+        "#bf5700", 500,
+        "#8a3d00"
       ],
       "circle-radius": [
         "step", ["get", "point_count"],
@@ -205,7 +262,7 @@ map.on("load", async () => {
     source: "properties",
     filter: ["!", ["has", "point_count"]],
     paint: {
-      "circle-color": "#2c5f6f",
+      "circle-color": "#bf5700",
       "circle-radius": 6,
       "circle-stroke-width": 2,
       "circle-stroke-color": "#ffffff"
@@ -224,13 +281,31 @@ map.on("load", async () => {
   map.on("click", "unclustered-point", (e) => {
     const f = e.features[0];
     const coords = f.geometry.coordinates.slice();
-    const { owner, city } = f.properties;
+    const p = f.properties;
+
+    const rows = [
+      ["City", p.city],
+      ["Owner", p.owner],
+      ["Units", p.units || "—"],
+      ["Year built", p.yearBuilt || "—"]
+    ].map(([k, v]) => `
+      <div class="popup-row">
+        <span class="k">${escapeHTML(k)}</span>
+        <span class="v">${escapeHTML(String(v || "—"))}</span>
+      </div>
+    `).join("");
+
+    const link = p.yardiLink
+      ? `<a class="popup-link" href="${escapeAttr(p.yardiLink)}" target="_blank" rel="noopener">View in Yardi →</a>`
+      : "";
+
     new maplibregl.Popup({ offset: 10 })
       .setLngLat(coords)
-      .setHTML(
-        `<div class="popup-owner">${escapeHTML(owner || "Unknown owner")}</div>
-         <div class="popup-city">${escapeHTML(city || "")}</div>`
-      )
+      .setHTML(`
+        <div class="popup-name">${escapeHTML(p.name || "Unnamed property")}</div>
+        ${rows}
+        ${link}
+      `)
       .addTo(map);
   });
 
@@ -239,7 +314,9 @@ map.on("load", async () => {
     map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
   });
 
-  populateCityFilter(allProperties);
+  populateSelect("city-filter", allProperties.map((p) => p.city));
+  populateSelect("type-filter", allProperties.map((p) => p.type));
+  populateSelect("submarket-filter", allProperties.map((p) => p.submarket));
   updateCount(allProperties.length, allProperties.length);
 });
 
@@ -249,18 +326,26 @@ function toGeoJSON(props) {
     features: props.map((p) => ({
       type: "Feature",
       geometry: { type: "Point", coordinates: [p.lng, p.lat] },
-      properties: { id: p.id, owner: p.owner, city: p.city }
+      properties: {
+        id: p.id,
+        name: p.name,
+        owner: p.owner,
+        city: p.city,
+        units: p.units,
+        yearBuilt: p.yearBuilt,
+        yardiLink: p.yardiLink
+      }
     }))
   };
 }
 
-function populateCityFilter(props) {
-  const cities = [...new Set(props.map((p) => p.city).filter(Boolean))].sort();
-  const select = document.getElementById("city-filter");
-  for (const c of cities) {
+function populateSelect(id, values) {
+  const unique = [...new Set(values.filter(Boolean))].sort();
+  const select = document.getElementById(id);
+  for (const v of unique) {
     const opt = document.createElement("option");
-    opt.value = c;
-    opt.textContent = c;
+    opt.value = v;
+    opt.textContent = v;
     select.appendChild(opt);
   }
 }
@@ -274,11 +359,31 @@ function updateCount(shown, total) {
 
 function applyFilters() {
   const city = document.getElementById("city-filter").value;
+  const type = document.getElementById("type-filter").value;
+  const submarket = document.getElementById("submarket-filter").value;
   const ownerQuery = document.getElementById("owner-filter").value.trim().toLowerCase();
+  const yearMin = document.getElementById("year-min").value;
+  const yearMax = document.getElementById("year-max").value;
+  const closeDays = document.getElementById("close-filter").value;
+
+  let closeCutoff = null;
+  if (closeDays) {
+    closeCutoff = new Date();
+    closeCutoff.setDate(closeCutoff.getDate() - parseInt(closeDays, 10));
+  }
 
   const filtered = allProperties.filter((p) => {
     if (city && p.city !== city) return false;
+    if (type && p.type !== type) return false;
+    if (submarket && p.submarket !== submarket) return false;
     if (ownerQuery && !(p.owner || "").toLowerCase().includes(ownerQuery)) return false;
+    if (yearMin && (!p.yearBuilt || p.yearBuilt < parseInt(yearMin, 10))) return false;
+    if (yearMax && (!p.yearBuilt || p.yearBuilt > parseInt(yearMax, 10))) return false;
+    if (closeCutoff) {
+      if (!p.close) return false;
+      const closeDate = new Date(p.close);
+      if (isNaN(closeDate) || closeDate < closeCutoff) return false;
+    }
     return true;
   });
 
@@ -291,12 +396,24 @@ function escapeHTML(str) {
   div.textContent = str;
   return div.innerHTML;
 }
+function escapeAttr(str) {
+  return escapeHTML(str).replace(/"/g, "&quot;");
+}
 
-document.getElementById("city-filter").addEventListener("change", applyFilters);
-document.getElementById("owner-filter").addEventListener("input", applyFilters);
+[
+  "city-filter", "type-filter", "submarket-filter",
+  "owner-filter", "year-min", "year-max", "close-filter"
+].forEach((id) => {
+  const el = document.getElementById(id);
+  el.addEventListener(el.tagName === "SELECT" ? "change" : "input", applyFilters);
+});
+
 document.getElementById("reset").addEventListener("click", () => {
-  document.getElementById("city-filter").value = "";
+  ["city-filter", "type-filter", "submarket-filter"].forEach((id) => (document.getElementById(id).value = ""));
   document.getElementById("owner-filter").value = "";
+  document.getElementById("year-min").value = "";
+  document.getElementById("year-max").value = "";
+  document.getElementById("close-filter").value = "";
   applyFilters();
 });
 </script>
