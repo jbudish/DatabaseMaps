@@ -32,6 +32,13 @@
     overflow-y: auto;
   }
 
+  #sidebar-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
   #sidebar h1 {
     font-size: 17px;
     font-weight: 650;
@@ -43,6 +50,17 @@
     color: var(--ink-soft);
   }
   #count strong { color: var(--ink); font-weight: 650; }
+
+  #sidebar-close {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--ink-soft);
+    cursor: pointer;
+    padding: 4px;
+  }
 
   .field { display: flex; flex-direction: column; gap: 6px; }
   .field label {
@@ -117,15 +135,76 @@
     color: var(--ink-soft);
     z-index: 5;
   }
+
+  #mobile-filter-toggle {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 15;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    cursor: pointer;
+  }
+
+  #sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 18;
+  }
+
+  @media (max-width: 768px) {
+    #app { flex-direction: column; }
+
+    #sidebar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: auto;
+      width: 100%;
+      max-height: 78vh;
+      transform: translateY(100%);
+      transition: transform 0.25s ease;
+      z-index: 20;
+      border-right: none;
+      border-top: 1px solid var(--line);
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
+    }
+
+    #sidebar.open { transform: translateY(0); }
+
+    #sidebar-close { display: block; }
+
+    #map { width: 100%; }
+
+    #mobile-filter-toggle { display: block; }
+
+    #sidebar-backdrop.open { display: block; }
+  }
 </style>
 </head>
 <body>
 
 <div id="app">
+  <div id="sidebar-backdrop"></div>
+
   <div id="sidebar">
-    <div>
-      <h1>Property Map</h1>
-      <div id="count">Loading…</div>
+    <div id="sidebar-header">
+      <div>
+        <h1>Property Map</h1>
+        <div id="count">Loading…</div>
+      </div>
+      <button id="sidebar-close" aria-label="Close filters">✕</button>
     </div>
 
     <div class="field">
@@ -189,6 +268,8 @@
 
     <button id="reset">Clear filters</button>
   </div>
+
+  <button id="mobile-filter-toggle">Filters</button>
 
   <div id="map">
     <div id="loading">Loading properties…</div>
@@ -411,6 +492,9 @@ function updateCount(shown, total) {
     shown === total
       ? `<strong>${total.toLocaleString()}</strong> properties`
       : `<strong>${shown.toLocaleString()}</strong> of ${total.toLocaleString()} properties`;
+
+  const toggle = document.getElementById("mobile-filter-toggle");
+  toggle.textContent = shown === total ? "Filters" : `Filters (${shown.toLocaleString()})`;
 }
 
 function formatCurrency(value) {
@@ -443,8 +527,6 @@ function getFilterState() {
   };
 }
 
-// excludeKey lets us compute "what would still be available for THIS dropdown"
-// by applying every filter except the one for this dropdown's own field.
 function matchesFilters(p, f, excludeKey) {
   if (f.type && excludeKey !== "type" && p.type !== f.type) return false;
   if (f.submarket && excludeKey !== "submarket" && p.submarket !== f.submarket) return false;
@@ -539,6 +621,22 @@ document.getElementById("reset").addEventListener("click", () => {
   document.getElementById("close-filter").value = "";
   applyFilters();
 });
+
+const sidebar = document.getElementById("sidebar");
+const backdrop = document.getElementById("sidebar-backdrop");
+
+function openSidebar() {
+  sidebar.classList.add("open");
+  backdrop.classList.add("open");
+}
+function closeSidebar() {
+  sidebar.classList.remove("open");
+  backdrop.classList.remove("open");
+}
+
+document.getElementById("mobile-filter-toggle").addEventListener("click", openSidebar);
+document.getElementById("sidebar-close").addEventListener("click", closeSidebar);
+backdrop.addEventListener("click", closeSidebar);
 </script>
 
 </body>
