@@ -10,7 +10,19 @@ if (!TOKEN) {
   process.exit(1);
 }
 
-const FIELDS = ["Latitude", "Longitude", "City", "OwnerName"];
+const FIELDS = [
+  "Latitude",
+  "Longitude",
+  "City",
+  "OwnerName",
+  "Type",
+  "Year Built",
+  "Submarket",
+  "Close",
+  "Property Name",
+  "Units",
+  "Yardi Link",
+];
 
 async function fetchAllRecords() {
   const records = [];
@@ -36,15 +48,19 @@ async function fetchAllRecords() {
     records.push(...data.records);
     offset = data.offset;
 
-    // stay comfortably under Airtable's rate limit (5 req/sec per base)
     if (offset) await new Promise((r) => setTimeout(r, 250));
   } while (offset);
 
   return records;
 }
 
-function extractOwner(value) {
+function firstValue(value) {
   // Lookup fields return an array, even for a single linked record.
+  if (Array.isArray(value)) return value.length ? value[0] : null;
+  return value ?? null;
+}
+
+function extractOwner(value) {
   if (Array.isArray(value)) return value.filter(Boolean).join(", ");
   return value || "";
 }
@@ -59,8 +75,15 @@ async function main() {
       id: r.id,
       lat: r.fields.Latitude,
       lng: r.fields.Longitude,
+      name: r.fields["Property Name"] || "",
       city: r.fields.City || "",
       owner: extractOwner(r.fields.OwnerName),
+      type: r.fields.Type || "",
+      yearBuilt: typeof r.fields["Year Built"] === "number" ? r.fields["Year Built"] : null,
+      submarket: r.fields.Submarket || "",
+      close: firstValue(r.fields.Close), // ISO date string, e.g. "2023-04-12"
+      units: typeof r.fields.Units === "number" ? r.fields.Units : null,
+      yardiLink: r.fields["Yardi Link"] || "",
     }))
     .filter((p) => typeof p.lat === "number" && typeof p.lng === "number");
 
