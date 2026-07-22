@@ -360,4 +360,49 @@ function applyFilters() {
 
   const filtered = allProperties.filter((p) => {
     if (type && p.type !== type) return false;
-    if (submarket && p.submarket !==
+    if (submarket && p.submarket !== submarket) return false;
+    if (city && p.city !== city) return false;
+    if (yearMin && (!p.yearBuilt || p.yearBuilt < parseInt(yearMin, 10))) return false;
+    if (yearMax && (!p.yearBuilt || p.yearBuilt > parseInt(yearMax, 10))) return false;
+    if (ownerQuery && !(p.owner || "").toLowerCase().includes(ownerQuery)) return false;
+    if (closeCutoff) {
+      if (!p.close) return false;
+      const closeDate = new Date(p.close);
+      if (isNaN(closeDate) || closeDate < closeCutoff) return false;
+    }
+    return true;
+  });
+
+  map.getSource("properties").setData(toGeoJSON(filtered));
+  updateCount(filtered.length, allProperties.length);
+}
+
+function escapeHTML(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+function escapeAttr(str) {
+  return escapeHTML(str).replace(/"/g, "&quot;");
+}
+
+[
+  "type-filter", "submarket-filter", "city-filter",
+  "year-min", "year-max", "owner-filter", "close-filter"
+].forEach((id) => {
+  const el = document.getElementById(id);
+  el.addEventListener(el.tagName === "SELECT" ? "change" : "input", applyFilters);
+});
+
+document.getElementById("reset").addEventListener("click", () => {
+  ["type-filter", "submarket-filter", "city-filter"].forEach((id) => (document.getElementById(id).value = ""));
+  document.getElementById("year-min").value = "";
+  document.getElementById("year-max").value = "";
+  document.getElementById("owner-filter").value = "";
+  document.getElementById("close-filter").value = "";
+  applyFilters();
+});
+</script>
+
+</body>
+</html>
