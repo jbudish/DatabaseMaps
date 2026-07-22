@@ -44,18 +44,6 @@
   }
   #count strong { color: var(--ink); font-weight: 650; }
 
-  .section-label {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--ink-soft);
-    margin: 4px 0 -4px;
-    padding-top: 8px;
-    border-top: 1px solid var(--line);
-  }
-  .section-label:first-of-type { border-top: none; padding-top: 0; }
-
   .field { display: flex; flex-direction: column; gap: 6px; }
   .field label {
     font-size: 11px;
@@ -312,9 +300,9 @@ map.on("load", async () => {
     map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
   });
 
-  populateSelect("city-filter", allProperties.map((p) => p.city));
   populateSelect("type-filter", allProperties.map((p) => p.type));
   populateSelect("submarket-filter", allProperties.map((p) => p.submarket));
+  populateSelect("city-filter", allProperties.map((p) => p.city));
   updateCount(allProperties.length, allProperties.length);
 });
 
@@ -356,12 +344,12 @@ function updateCount(shown, total) {
 }
 
 function applyFilters() {
-  const city = document.getElementById("city-filter").value;
   const type = document.getElementById("type-filter").value;
   const submarket = document.getElementById("submarket-filter").value;
-  const ownerQuery = document.getElementById("owner-filter").value.trim().toLowerCase();
+  const city = document.getElementById("city-filter").value;
   const yearMin = document.getElementById("year-min").value;
   const yearMax = document.getElementById("year-max").value;
+  const ownerQuery = document.getElementById("owner-filter").value.trim().toLowerCase();
   const closeDays = document.getElementById("close-filter").value;
 
   let closeCutoff = null;
@@ -371,50 +359,5 @@ function applyFilters() {
   }
 
   const filtered = allProperties.filter((p) => {
-    if (city && p.city !== city) return false;
     if (type && p.type !== type) return false;
-    if (submarket && p.submarket !== submarket) return false;
-    if (ownerQuery && !(p.owner || "").toLowerCase().includes(ownerQuery)) return false;
-    if (yearMin && (!p.yearBuilt || p.yearBuilt < parseInt(yearMin, 10))) return false;
-    if (yearMax && (!p.yearBuilt || p.yearBuilt > parseInt(yearMax, 10))) return false;
-    if (closeCutoff) {
-      if (!p.close) return false;
-      const closeDate = new Date(p.close);
-      if (isNaN(closeDate) || closeDate < closeCutoff) return false;
-    }
-    return true;
-  });
-
-  map.getSource("properties").setData(toGeoJSON(filtered));
-  updateCount(filtered.length, allProperties.length);
-}
-
-function escapeHTML(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
-}
-function escapeAttr(str) {
-  return escapeHTML(str).replace(/"/g, "&quot;");
-}
-
-[
-  "city-filter", "type-filter", "submarket-filter",
-  "owner-filter", "year-min", "year-max", "close-filter"
-].forEach((id) => {
-  const el = document.getElementById(id);
-  el.addEventListener(el.tagName === "SELECT" ? "change" : "input", applyFilters);
-});
-
-document.getElementById("reset").addEventListener("click", () => {
-  ["city-filter", "type-filter", "submarket-filter"].forEach((id) => (document.getElementById(id).value = ""));
-  document.getElementById("owner-filter").value = "";
-  document.getElementById("year-min").value = "";
-  document.getElementById("year-max").value = "";
-  document.getElementById("close-filter").value = "";
-  applyFilters();
-});
-</script>
-
-</body>
-</html>
+    if (submarket && p.submarket !==
