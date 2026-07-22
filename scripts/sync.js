@@ -22,6 +22,10 @@ const FIELDS = [
   "Property",
   "Units",
   "Yardi Link",
+  "Stage (from Sales)",
+  "Guidance (from Sales)",
+  "Guidance/Unit (from Sales)",
+  "Broker Seller (from Sales)",
 ];
 
 async function fetchAllRecords() {
@@ -81,9 +85,13 @@ async function main() {
       type: r.fields.Type || "",
       yearBuilt: typeof r.fields["Year Built"] === "number" ? r.fields["Year Built"] : null,
       submarket: r.fields.Submarket || "",
-      close: firstValue(r.fields.Close), // ISO date string, e.g. "2023-04-12"
+      close: firstValue(r.fields.Close),
       units: typeof r.fields.Units === "number" ? r.fields.Units : null,
       yardiLink: r.fields["Yardi Link"] || "",
+      stage: firstValue(r.fields["Stage (from Sales)"]) || "",
+      guidance: firstValue(r.fields["Guidance (from Sales)"]),
+      guidancePerUnit: firstValue(r.fields["Guidance/Unit (from Sales)"]),
+      brokerSeller: firstValue(r.fields["Broker Seller (from Sales)"]) || "",
     }))
     .filter((p) => typeof p.lat === "number" && typeof p.lng === "number");
 
