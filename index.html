@@ -175,9 +175,10 @@
     </div>
 
     <div class="field">
-      <label for="close-filter">Recently sold</label>
+      <label for="close-filter">Recently Sold &amp; On Market</label>
       <select id="close-filter">
         <option value="">Any time</option>
+        <option value="future">Future</option>
         <option value="30">Last 30 days</option>
         <option value="90">Last 90 days</option>
         <option value="180">Last 6 months</option>
@@ -198,6 +199,36 @@
 const DATA_URL = "data/properties.json";
 
 let allProperties = [];
+
+const STAGE_ORDER = [
+  "Closed",
+  "Under Contract - Non-Contingent",
+  "Under Contract - Contingent",
+  "Active - Listed",
+  "Active - Off Market",
+  "Active - Awarded",
+  "Pursuit - BOV",
+  "Pursuit - Underwriting",
+  "Tracking",
+  "On Hold",
+  "Didn't Sell",
+  "Lost"
+];
+
+const STAGE_COLORS = {
+  "Closed": { color: "#1f8a4c", bg: "#d3f2dd" },
+  "Under Contract - Non-Contingent": { color: "#c0392b", bg: "#fbdcd8" },
+  "Under Contract - Contingent": { color: "#c2185b", bg: "#fbdce9" },
+  "Active - Listed": { color: "#a8710a", bg: "#fdf0cf" },
+  "Active - Off Market": { color: "#a8710a", bg: "#fdf0cf" },
+  "Active - Awarded": { color: "#a8710a", bg: "#fdf0cf" },
+  "Pursuit - BOV": { color: "#c1670e", bg: "#fde3cc" },
+  "Pursuit - Underwriting": { color: "#c1670e", bg: "#fde3cc" },
+  "Tracking": { color: "#1c5fa8", bg: "#d9e8fb" },
+  "On Hold": { color: "#5c6773", bg: "#e6e8eb" },
+  "Didn't Sell": { color: "#5c6773", bg: "#e6e8eb" },
+  "Lost": { color: "#5c6773", bg: "#e6e8eb" }
+};
 
 const map = new maplibregl.Map({
   container: "map",
@@ -321,12 +352,7 @@ map.on("load", async () => {
     map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
   });
 
-  populateSelect("type-filter", allProperties.map((p) => p.type));
-  populateSelect("submarket-filter", allProperties.map((p) => p.submarket));
-  populateSelect("city-filter", allProperties.map((p) => p.city));
-  populateSelect("stage-filter", allProperties.map((p) => p.stage));
-  populateSelect("broker-filter", allProperties.map((p) => p.brokerSeller));
-  updateCount(allProperties.length, allProperties.length);
+  applyFilters();
 });
 
 function toGeoJSON(props) {
@@ -351,15 +377,33 @@ function toGeoJSON(props) {
   };
 }
 
-function populateSelect(id, values) {
-  const unique = [...new Set(values.filter(Boolean))].sort();
+function uniqueSorted(values) {
+  return [...new Set(values.filter(Boolean))].sort();
+}
+
+function rebuildSelect(id, values, placeholder) {
   const select = document.getElementById(id);
-  for (const v of unique) {
-    const opt = document.createElement("option");
-    opt.value = v;
-    opt.textContent = v;
-    select.appendChild(opt);
-  }
+  const prevValue = select.value;
+  select.innerHTML =
+    `<option value="">${placeholder}</option>` +
+    values.map((v) => `<option value="${escapeAttr(v)}">${escapeHTML(v)}</option>`).join("");
+  select.value = values.includes(prevValue) ? prevValue : "";
+}
+
+function rebuildStageSelect(values) {
+  const select = document.getElementById("stage-filter");
+  const prevValue = select.value;
+  const present = new Set(values);
+  const ordered = STAGE_ORDER.filter((s) => present.has(s));
+  select.innerHTML =
+    `<option value="">All stages</option>` +
+    ordered
+      .map((s) => {
+        const c = STAGE_COLORS[s] || { color: "#1c2530", bg: "#ffffff" };
+        return `<option value="${escapeAttr(s)}" style="color:${c.color};background-color:${c.bg};">${escapeHTML(s)}</option>`;
+      })
+      .join("");
+  select.value = ordered.includes(prevValue) ? prevValue : "";
 }
 
 function updateCount(shown, total) {
@@ -383,46 +427,87 @@ function normalizeUrl(url) {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
-function applyFilters() {
-  const type = document.getElementById("type-filter").value;
-  const submarket = document.getElementById("submarket-filter").value;
-  const city = document.getElementById("city-filter").value;
-  const stage = document.getElementById("stage-filter").value;
-  const broker = document.getElementById("broker-filter").value;
-  const yearMin = document.getElementById("year-min").value;
-  const yearMax = document.getElementById("year-max").value;
-  const unitsMin = document.getElementById("units-min").value;
-  const unitsMax = document.getElementById("units-max").value;
-  const ownerQuery = document.getElementById("owner-filter").value.trim().toLowerCase();
-  const closeDays = document.getElementById("close-filter").value;
+function getFilterState() {
+  return {
+    type: document.getElementById("type-filter").value,
+    submarket: document.getElementById("submarket-filter").value,
+    city: document.getElementById("city-filter").value,
+    stage: document.getElementById("stage-filter").value,
+    broker: document.getElementById("broker-filter").value,
+    yearMin: document.getElementById("year-min").value ? parseInt(document.getElementById("year-min").value, 10) : null,
+    yearMax: document.getElementById("year-max").value ? parseInt(document.getElementById("year-max").value, 10) : null,
+    unitsMin: document.getElementById("units-min").value ? parseInt(document.getElementById("units-min").value, 10) : null,
+    unitsMax: document.getElementById("units-max").value ? parseInt(document.getElementById("units-max").value, 10) : null,
+    ownerQuery: document.getElementById("owner-filter").value.trim().toLowerCase(),
+    closeMode: document.getElementById("close-filter").value
+  };
+}
 
-  let closeCutoff = null;
-  if (closeDays) {
-    closeCutoff = new Date();
-    closeCutoff.setDate(closeCutoff.getDate() - parseInt(closeDays, 10));
+// excludeKey lets us compute "what would still be available for THIS dropdown"
+// by applying every filter except the one for this dropdown's own field.
+function matchesFilters(p, f, excludeKey) {
+  if (f.type && excludeKey !== "type" && p.type !== f.type) return false;
+  if (f.submarket && excludeKey !== "submarket" && p.submarket !== f.submarket) return false;
+  if (f.city && excludeKey !== "city" && p.city !== f.city) return false;
+  if (f.stage && excludeKey !== "stage" && p.stage !== f.stage) return false;
+  if (f.broker && excludeKey !== "broker" && p.brokerSeller !== f.broker) return false;
+
+  if (f.yearMin !== null && (!p.yearBuilt || p.yearBuilt < f.yearMin)) return false;
+  if (f.yearMax !== null && (!p.yearBuilt || p.yearBuilt > f.yearMax)) return false;
+  if (f.unitsMin !== null && (!p.units || p.units < f.unitsMin)) return false;
+  if (f.unitsMax !== null && (!p.units || p.units > f.unitsMax)) return false;
+  if (f.ownerQuery && !(p.owner || "").toLowerCase().includes(f.ownerQuery)) return false;
+
+  if (f.closeMode) {
+    if (!p.close) return false;
+    const d = new Date(p.close);
+    if (isNaN(d)) return false;
+    const now = new Date();
+    if (f.closeMode === "future") {
+      if (d <= now) return false;
+    } else {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - parseInt(f.closeMode, 10));
+      if (d < cutoff || d > now) return false;
+    }
   }
 
-  const filtered = allProperties.filter((p) => {
-    if (type && p.type !== type) return false;
-    if (submarket && p.submarket !== submarket) return false;
-    if (city && p.city !== city) return false;
-    if (stage && p.stage !== stage) return false;
-    if (broker && p.brokerSeller !== broker) return false;
-    if (yearMin && (!p.yearBuilt || p.yearBuilt < parseInt(yearMin, 10))) return false;
-    if (yearMax && (!p.yearBuilt || p.yearBuilt > parseInt(yearMax, 10))) return false;
-    if (unitsMin && (!p.units || p.units < parseInt(unitsMin, 10))) return false;
-    if (unitsMax && (!p.units || p.units > parseInt(unitsMax, 10))) return false;
-    if (ownerQuery && !(p.owner || "").toLowerCase().includes(ownerQuery)) return false;
-    if (closeCutoff) {
-      if (!p.close) return false;
-      const closeDate = new Date(p.close);
-      if (isNaN(closeDate) || closeDate < closeCutoff) return false;
-    }
-    return true;
-  });
+  return true;
+}
+
+function updateFacetOptions(state) {
+  rebuildSelect(
+    "type-filter",
+    uniqueSorted(allProperties.filter((p) => matchesFilters(p, state, "type")).map((p) => p.type)),
+    "All types"
+  );
+  rebuildSelect(
+    "submarket-filter",
+    uniqueSorted(allProperties.filter((p) => matchesFilters(p, state, "submarket")).map((p) => p.submarket)),
+    "All submarkets"
+  );
+  rebuildSelect(
+    "city-filter",
+    uniqueSorted(allProperties.filter((p) => matchesFilters(p, state, "city")).map((p) => p.city)),
+    "All cities"
+  );
+  rebuildStageSelect(
+    uniqueSorted(allProperties.filter((p) => matchesFilters(p, state, "stage")).map((p) => p.stage))
+  );
+  rebuildSelect(
+    "broker-filter",
+    uniqueSorted(allProperties.filter((p) => matchesFilters(p, state, "broker")).map((p) => p.brokerSeller)),
+    "All brokers"
+  );
+}
+
+function applyFilters() {
+  const state = getFilterState();
+  const filtered = allProperties.filter((p) => matchesFilters(p, state, null));
 
   map.getSource("properties").setData(toGeoJSON(filtered));
   updateCount(filtered.length, allProperties.length);
+  updateFacetOptions(state);
 }
 
 function escapeHTML(str) {
