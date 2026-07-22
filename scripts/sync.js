@@ -19,7 +19,7 @@ const FIELDS = [
   "Year Built",
   "Submarket",
   "Close",
-  "Property Name",
+  "Property",
   "Units",
   "Yardi Link",
 ];
@@ -75,7 +75,7 @@ async function main() {
       id: r.id,
       lat: r.fields.Latitude,
       lng: r.fields.Longitude,
-      name: r.fields["Property Name"] || "",
+      name: r.fields["Property"] || "",
       city: r.fields.City || "",
       owner: extractOwner(r.fields.OwnerName),
       type: r.fields.Type || "",
