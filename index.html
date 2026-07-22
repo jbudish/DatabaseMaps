@@ -90,7 +90,7 @@
     padding: 14px 16px;
     border-radius: 8px;
     box-shadow: 0 6px 24px rgba(28,37,48,0.15);
-    min-width: 200px;
+    min-width: 210px;
   }
   .popup-name { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
   .popup-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
@@ -141,6 +141,16 @@
     <div class="field">
       <label for="city-filter">City</label>
       <select id="city-filter"><option value="">All cities</option></select>
+    </div>
+
+    <div class="field">
+      <label for="stage-filter">Stage</label>
+      <select id="stage-filter"><option value="">All stages</option></select>
+    </div>
+
+    <div class="field">
+      <label for="broker-filter">Broker seller</label>
+      <select id="broker-filter"><option value="">All brokers</option></select>
     </div>
 
     <div class="field">
@@ -273,7 +283,10 @@ map.on("load", async () => {
       ["City", p.city],
       ["Owner", p.owner],
       ["Units", p.units || "—"],
-      ["Year built", p.yearBuilt || "—"]
+      ["Year built", p.yearBuilt || "—"],
+      ["Stage", p.stage || "—"],
+      ["Guidance", formatCurrency(p.guidance)],
+      ["Guidance/unit", formatCurrency(p.guidancePerUnit)]
     ].map(([k, v]) => `
       <div class="popup-row">
         <span class="k">${escapeHTML(k)}</span>
@@ -303,6 +316,8 @@ map.on("load", async () => {
   populateSelect("type-filter", allProperties.map((p) => p.type));
   populateSelect("submarket-filter", allProperties.map((p) => p.submarket));
   populateSelect("city-filter", allProperties.map((p) => p.city));
+  populateSelect("stage-filter", allProperties.map((p) => p.stage));
+  populateSelect("broker-filter", allProperties.map((p) => p.brokerSeller));
   updateCount(allProperties.length, allProperties.length);
 });
 
@@ -319,7 +334,10 @@ function toGeoJSON(props) {
         city: p.city,
         units: p.units,
         yearBuilt: p.yearBuilt,
-        yardiLink: p.yardiLink
+        yardiLink: p.yardiLink,
+        stage: p.stage,
+        guidance: p.guidance,
+        guidancePerUnit: p.guidancePerUnit
       }
     }))
   };
@@ -343,10 +361,21 @@ function updateCount(shown, total) {
       : `<strong>${shown.toLocaleString()}</strong> of ${total.toLocaleString()} properties`;
 }
 
+function formatCurrency(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  if (isNaN(n)) return null;
+  if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+  if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${n.toFixed(0)}`;
+}
+
 function applyFilters() {
   const type = document.getElementById("type-filter").value;
   const submarket = document.getElementById("submarket-filter").value;
   const city = document.getElementById("city-filter").value;
+  const stage = document.getElementById("stage-filter").value;
+  const broker = document.getElementById("broker-filter").value;
   const yearMin = document.getElementById("year-min").value;
   const yearMax = document.getElementById("year-max").value;
   const ownerQuery = document.getElementById("owner-filter").value.trim().toLowerCase();
@@ -362,6 +391,8 @@ function applyFilters() {
     if (type && p.type !== type) return false;
     if (submarket && p.submarket !== submarket) return false;
     if (city && p.city !== city) return false;
+    if (stage && p.stage !== stage) return false;
+    if (broker && p.brokerSeller !== broker) return false;
     if (yearMin && (!p.yearBuilt || p.yearBuilt < parseInt(yearMin, 10))) return false;
     if (yearMax && (!p.yearBuilt || p.yearBuilt > parseInt(yearMax, 10))) return false;
     if (ownerQuery && !(p.owner || "").toLowerCase().includes(ownerQuery)) return false;
@@ -387,7 +418,7 @@ function escapeAttr(str) {
 }
 
 [
-  "type-filter", "submarket-filter", "city-filter",
+  "type-filter", "submarket-filter", "city-filter", "stage-filter", "broker-filter",
   "year-min", "year-max", "owner-filter", "close-filter"
 ].forEach((id) => {
   const el = document.getElementById(id);
@@ -395,7 +426,9 @@ function escapeAttr(str) {
 });
 
 document.getElementById("reset").addEventListener("click", () => {
-  ["type-filter", "submarket-filter", "city-filter"].forEach((id) => (document.getElementById(id).value = ""));
+  ["type-filter", "submarket-filter", "city-filter", "stage-filter", "broker-filter"].forEach(
+    (id) => (document.getElementById(id).value = "")
+  );
   document.getElementById("year-min").value = "";
   document.getElementById("year-max").value = "";
   document.getElementById("owner-filter").value = "";
