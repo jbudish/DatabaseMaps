@@ -652,7 +652,13 @@ function initMap() {
 // Guarded against double-firing of style.load, which previously left the map
 // permanently missing its property dots after a basemap switch.
 function addPropertyLayers() {
-  if (map.getSource("properties")) return;
+  // Always start from a clean slate: MapLibre's style-diffing can leave stale
+  // layer/source references behind after setStyle(), even with diff:false,
+  // which previously caused clustering to silently break after a basemap switch.
+  ["clusters", "cluster-count", "unclustered-point"].forEach((id) => {
+    if (map.getLayer(id)) map.removeLayer(id);
+  });
+  if (map.getSource("properties")) map.removeSource("properties");
 
   map.addSource("properties", {
     type: "geojson",
