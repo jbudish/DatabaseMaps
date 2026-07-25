@@ -81,6 +81,7 @@ async function main() {
       developerId: firstLinkedId(r.fields.Developer),
       developmentEquity: typeof r.fields["Development Equity"] === "number" ? r.fields["Development Equity"] : null,
       avgUnitSF: typeof r.fields["Avg Unit SF"] === "number" ? r.fields["Avg Unit SF"] : null,
+      squareFeet: typeof r.fields["Square Feet"] === "number" ? r.fields["Square Feet"] : null,
       occupancy: typeof r.fields.Occupancy === "number" ? r.fields.Occupancy : null,
       rentPSF: typeof r.fields["Rent PSF"] === "number" ? r.fields["Rent PSF"] : null,
       avgRent: typeof r.fields["Avg Rent"] === "number" ? r.fields["Avg Rent"] : null,
