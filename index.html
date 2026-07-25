@@ -263,12 +263,28 @@
   }
   .popup-link:hover { text-decoration: underline; }
 
+  #version-badge {
+    position: fixed;
+    bottom: 6px;
+    left: 6px;
+    z-index: 999;
+    font-family: monospace;
+    font-size: 11px;
+    color: #fff;
+    background: rgba(26, 58, 92, 0.75);
+    padding: 2px 7px;
+    border-radius: 4px;
+    pointer-events: none;
+  }
+
   .coming-soon {
     padding: 30px 10px; text-align: center; color: var(--ink-soft); font-size: 13.5px;
   }
 </style>
 </head>
 <body>
+
+<div id="version-badge">v1</div>
 
 <div id="app">
   <div id="sidebar">
