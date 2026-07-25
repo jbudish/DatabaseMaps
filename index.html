@@ -713,7 +713,7 @@ function setupBasemapToggle() {
     ],
     initial: "map",
     onChange: (key) => {
-      map.setStyle(BASEMAPS[key]);
+      map.setStyle(BASEMAPS[key], { diff: false });
       map.once("idle", () => {
         addPropertyLayers();
         applyAll();
