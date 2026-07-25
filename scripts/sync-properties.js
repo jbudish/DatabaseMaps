@@ -22,6 +22,7 @@ const FIELDS = [
   "Developer",
   "Development Equity",
   "Avg Unit SF",
+  "Square Feet",
   "Occupancy",
   "Rent PSF",
   "Avg Rent",
