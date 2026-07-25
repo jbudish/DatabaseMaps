@@ -541,7 +541,7 @@ function initMap() {
         ["Submarket", p.submarket],
         ["Owner", p.ownerName],
         ["Year built", p.yearBuilt],
-        isMultifamily ? ["Units", p.units] : ["Square feet", p.avgUnitSF]
+        isMultifamily ? ["Units", p.units] : ["Square feet", p.squareFeet]
       ]
         .map(
           ([k, v]) => `<div class="popup-row"><span class="k">${escapeHTML(k)}</span><span class="v">${escapeHTML(
@@ -584,7 +584,7 @@ function toGeoJSON(props) {
       properties: {
         id: p.id, name: p.name, address: p.address, city: p.city, submarket: p.submarket,
         ownerName: p.ownerName, yearBuilt: p.yearBuilt, units: p.units, yardiLink: p.yardiLink,
-        type: p.type, avgUnitSF: p.avgUnitSF
+        type: p.type, squareFeet: p.squareFeet
       }
     }))
   };
