@@ -527,23 +527,18 @@ function normalizeUrl(url) {
 let map, msType, msSubmarket, msCity, msOwner, msExclude;
 let mapBounds = null;
 
-const BASEMAPS = {
-  map: "https://tiles.openfreemap.org/styles/liberty",
-  grey: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+const RASTER_BASEMAPS = {
+  map: {
+    tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"],
+    attribution: "© OpenStreetMap contributors © CARTO"
+  },
+  grey: {
+    tiles: ["https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png"],
+    attribution: "© OpenStreetMap contributors © CARTO"
+  },
   aerial: {
-    version: 8,
-    glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
-    sources: {
-      "esri-imagery": {
-        type: "raster",
-        tiles: [
-          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-        ],
-        tileSize: 256,
-        attribution: "Imagery © Esri, Maxar, Earthstar Geographics"
-      }
-    },
-    layers: [{ id: "esri-imagery-layer", type: "raster", source: "esri-imagery" }]
+    tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+    attribution: "Imagery © Esri, Maxar, Earthstar Geographics"
   }
 };
 
@@ -569,7 +564,17 @@ const YEAR_COLOR_EXPR = [
 function initMap() {
   map = new maplibregl.Map({
     container: "map",
-    style: BASEMAPS.map,
+    // A single, permanent minimal style. We never call setStyle() again after this —
+    // basemaps are swapped by replacing just the "basemap" raster layer beneath our
+    // property layers, which are added once and never touched again. This avoids a
+    // MapLibre quirk where repeatedly tearing down/rebuilding the whole style via
+    // setStyle() could silently corrupt the GeoJSON clustering engine.
+    style: {
+      version: 8,
+      glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+      sources: {},
+      layers: []
+    },
     center: [-93.2, 44.9],
     zoom: 8
   });
@@ -584,6 +589,7 @@ function initMap() {
   );
 
   map.on("load", () => {
+    setBasemap("map");
     addPropertyLayers();
 
     map.on("click", "clusters", (e) => {
@@ -646,19 +652,26 @@ function initMap() {
   });
 }
 
-// Adds the properties source + layers. Called on initial load, and again
-// after switching basemaps, since map.setStyle() clears custom sources/layers.
-// Guarded against double-firing of style.load, which previously left the map
-// permanently missing its property dots after a basemap switch.
-function addPropertyLayers() {
-  // Always start from a clean slate: MapLibre's style-diffing can leave stale
-  // layer/source references behind after setStyle(), even with diff:false,
-  // which previously caused clustering to silently break after a basemap switch.
-  ["clusters", "cluster-count", "unclustered-point"].forEach((id) => {
-    if (map.getLayer(id)) map.removeLayer(id);
-  });
-  if (map.getSource("properties")) map.removeSource("properties");
+// Swaps just the raster basemap layer, always keeping it beneath the property
+// layers if they already exist. Never touches the properties source/layers.
+function setBasemap(key) {
+  if (map.getLayer("basemap-layer")) map.removeLayer("basemap-layer");
+  if (map.getSource("basemap-src")) map.removeSource("basemap-src");
 
+  const cfg = RASTER_BASEMAPS[key];
+  map.addSource("basemap-src", {
+    type: "raster",
+    tiles: cfg.tiles,
+    tileSize: 256,
+    attribution: cfg.attribution
+  });
+
+  const beforeId = map.getLayer("clusters") ? "clusters" : undefined;
+  map.addLayer({ id: "basemap-layer", type: "raster", source: "basemap-src" }, beforeId);
+}
+
+// Adds the properties source + layers once, on initial load only.
+function addPropertyLayers() {
   map.addSource("properties", {
     type: "geojson",
     data: toGeoJSON(allProperties),
@@ -718,11 +731,7 @@ function setupBasemapToggle() {
     ],
     initial: "map",
     onChange: (key) => {
-      map.setStyle(BASEMAPS[key], { diff: false });
-      map.once("idle", () => {
-        addPropertyLayers();
-        applyAll();
-      });
+      setBasemap(key);
     }
   });
 }
