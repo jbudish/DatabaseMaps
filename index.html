@@ -679,7 +679,7 @@ function addPropertyLayers() {
     clusterMaxZoom: 11,
     clusterRadius: 25,
     clusterProperties: {
-      sum_units: ["+", ["coalesce", ["get", "units"], 0]]
+      sum_units: ["+", ["get", "units"]]
     }
   });
 
@@ -744,7 +744,7 @@ function toGeoJSON(props) {
       geometry: { type: "Point", coordinates: [p.lng, p.lat] },
       properties: {
         id: p.id, name: p.name, address: p.address, city: p.city, submarket: p.submarket,
-        ownerName: p.ownerName, yearBuilt: p.yearBuilt, units: p.units, yardiLink: p.yardiLink,
+        ownerName: p.ownerName, yearBuilt: p.yearBuilt, units: p.units ?? 0, yardiLink: p.yardiLink,
         type: p.type, squareFeet: p.squareFeet
       }
     }))
