@@ -668,3 +668,14 @@ function updateExcludeList(inViewProperties) {
 
 /* =========================================================
    PAGE SWITCHER
+   ========================================================= */
+document.getElementById("page-switcher").addEventListener("change", (e) => {
+  const page = e.target.value;
+  document.getElementById("filters-properties").style.display = page === "properties" ? "block" : "none";
+  document.getElementById("filters-development").style.display = page === "development" ? "block" : "none";
+  document.getElementById("filters-sales").style.display = page === "sales" ? "block" : "none";
+});
+</script>
+
+</body>
+</html>
