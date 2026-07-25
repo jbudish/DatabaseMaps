@@ -630,6 +630,7 @@ function initMap() {
     map.on("moveend", () => {
       mapBounds = map.getBounds();
       if (msExclude) msExclude.refresh();
+      updateStats(boundedToViewport(currentShownProperties()));
     });
   });
 }
@@ -849,13 +850,22 @@ function nameToIdMap(props) {
 /* =========================================================
    APPLY: filter map + stats + exclude list
    ========================================================= */
-function applyAll() {
+function currentShownProperties() {
   const state = getFilterState();
   const inView = allProperties.filter((p) => matchesFacetFilters(p, state));
-  const shown = inView.filter((p) => !excludedIds.has(p.id));
+  return inView.filter((p) => !excludedIds.has(p.id));
+}
 
+// Restricts a property list to whatever's currently visible in the map's viewport.
+function boundedToViewport(props) {
+  if (!mapBounds) return props;
+  return props.filter((p) => mapBounds.contains([p.lng, p.lat]));
+}
+
+function applyAll() {
+  const shown = currentShownProperties();
   map.getSource("properties").setData(toGeoJSON(shown));
-  updateStats(shown);
+  updateStats(boundedToViewport(shown));
   if (msExclude) msExclude.refresh();
 }
 
@@ -872,7 +882,7 @@ function updateStats(filtered) {
 
   const ownerUnits = {};
   filtered.forEach((p) => {
-    if (!p.ownerName) return;
+    if (!p.ownerName || p.ownerName === "Unknown1") return;
     ownerUnits[p.ownerName] = (ownerUnits[p.ownerName] || 0) + (p.units || 0);
   });
   const topOwners = Object.entries(ownerUnits).sort((a, b) => b[1] - a[1]).slice(0, 10);
