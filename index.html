@@ -293,7 +293,7 @@
 </head>
 <body>
 
-<div id="version-badge">v4</div>
+<div id="version-badge">v5</div>
 
 <div id="app">
   <div id="sidebar">
@@ -331,7 +331,6 @@
 
     <div id="filters-development" style="display:none;">
       <div class="filter-stack">
-        <div id="dev-ms-type" class="ms-slot" data-field="type" data-placeholder="Property type"></div>
         <div id="dev-ms-submarket" class="ms-slot" data-field="submarket" data-placeholder="Submarket"></div>
         <div id="dev-ms-city" class="ms-slot" data-field="city" data-placeholder="City"></div>
 
@@ -349,7 +348,11 @@
 
         <div id="dev-ms-developer" class="ms-slot" data-field="developerName" data-placeholder="Developer"></div>
         <div id="dev-ms-exclude" class="ms-slot"></div>
+        <div id="dev-basemap-toggle" class="ms-slot"></div>
       </div>
+
+      <div class="filter-section-title">Rent PSF</div>
+      <div id="dev-legend"></div>
 
       <button id="dev-reset-btn" class="page-reset-btn">Reset</button>
     </div>
@@ -412,8 +415,15 @@
           <div class="stat-value" id="dev-stat-occupancy">—</div>
         </div>
         <div class="stat-block">
-          <div class="stat-label">Rent PSF legend</div>
-          <div id="dev-legend"></div>
+          <div class="rank-header-row">
+            <div class="stat-label">Largest developers</div>
+            <div class="stat-label">Units Filtered</div>
+          </div>
+          <div class="rank-list" id="dev-stat-developers"></div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Units built by year</div>
+          <div id="dev-chart"></div>
         </div>
       </div>
     </div>
@@ -431,7 +441,7 @@ let excludedIdsDev = new Set(); // Development page: its own separate exclusion 
 const DEFAULT_EXCLUDED_OWNER = "Condos / Coops";
 
 let currentPage = "properties";
-let msDevType, msDevSubmarket, msDevCity, msDevDeveloper, msDevExclude;
+let msDevSubmarket, msDevCity, msDevDeveloper, msDevExclude;
 
 const RAINBOW7 = ["#c0392b", "#e08e4f", "#d4b106", "#1f8a4c", "#1c9e8e", "#1c5fa8", "#6b3fa0"];
 
@@ -591,6 +601,15 @@ function buildSingleSelect(containerEl, { options, initial, onChange }) {
   });
 
   render();
+
+  return {
+    // Silently syncs the displayed value from another instance's change,
+    // without re-triggering onChange (avoids feedback loops between synced toggles).
+    setValue: (v) => {
+      current = v;
+      render();
+    }
+  };
 }
 
 function escapeHTML(str) {
@@ -784,7 +803,7 @@ function addPropertyLayers() {
     type: "geojson",
     data: toGeoJSON(allProperties),
     cluster: true,
-    clusterMaxZoom: 11,
+    clusterMaxZoom: 9,
     clusterRadius: 25,
     clusterProperties: {
       sum_units: ["+", ["get", "units"]]
@@ -830,17 +849,31 @@ function addPropertyLayers() {
   });
 }
 
+let msBasemapProperties, msBasemapDev;
+
 function setupBasemapToggle() {
-  buildSingleSelect(document.getElementById("basemap-toggle"), {
-    options: [
-      { value: "map", label: "Map" },
-      { value: "aerial", label: "Aerial" },
-      { value: "grey", label: "Grey" }
-    ],
+  const options = [
+    { value: "map", label: "Map" },
+    { value: "aerial", label: "Aerial" },
+    { value: "grey", label: "Grey" }
+  ];
+
+  const onPick = (key) => {
+    setBasemap(key);
+    // Keep both pages' toggles visually in sync, without re-triggering onChange.
+    if (msBasemapProperties) msBasemapProperties.setValue(key);
+    if (msBasemapDev) msBasemapDev.setValue(key);
+  };
+
+  msBasemapProperties = buildSingleSelect(document.getElementById("basemap-toggle"), {
+    options,
     initial: "map",
-    onChange: (key) => {
-      setBasemap(key);
-    }
+    onChange: onPick
+  });
+  msBasemapDev = buildSingleSelect(document.getElementById("dev-basemap-toggle"), {
+    options,
+    initial: "map",
+    onChange: onPick
   });
 }
 
@@ -1052,66 +1085,51 @@ function formatCurrencyShort(value) {
    DEVELOPMENT PAGE
    ========================================================= */
 
-// Auto-bucketing for the data-driven Rent PSF color scale (ROYGBIV, up to 7
-// buckets, round-number edges) — unlike Properties' fixed year-built scheme,
-// this one recomputes against whatever's currently filtered/visible.
-function niceStep(roughStep) {
-  if (roughStep <= 0) return 1;
-  const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
-  const residual = roughStep / magnitude;
-  if (residual > 5) return 10 * magnitude;
-  if (residual > 2) return 5 * magnitude;
-  if (residual > 1) return 2 * magnitude;
-  return magnitude;
+// Fixed Rent PSF color scale: $0.25 increments from <$1.75 to $3.00+, plus a
+// dedicated dark charcoal "N/A" bucket for properties with no rent data
+// (rentPSF defaults to 0 in the GeoJSON for missing values, which we treat
+// as the N/A sentinel here rather than a real $0 rent).
+const NA_COLOR = "#333333";
+const RENT_PSF_BUCKETS = [
+  { max: 1.75, color: RAINBOW7[0], label: "< $1.75" },
+  { min: 1.75, color: RAINBOW7[1], label: "$1.75+" },
+  { min: 2.0, color: RAINBOW7[2], label: "$2.00+" },
+  { min: 2.25, color: RAINBOW7[3], label: "$2.25+" },
+  { min: 2.5, color: RAINBOW7[4], label: "$2.50+" },
+  { min: 2.75, color: RAINBOW7[5], label: "$2.75+" },
+  { min: 3.0, color: RAINBOW7[6], label: "$3.00+" }
+];
+
+const RENT_PSF_COLOR_EXPR = [
+  "case",
+  ["==", ["get", "rentPSF"], 0], NA_COLOR,
+  [
+    "step", ["get", "rentPSF"],
+    RENT_PSF_BUCKETS[0].color,
+    1.75, RENT_PSF_BUCKETS[1].color,
+    2.0, RENT_PSF_BUCKETS[2].color,
+    2.25, RENT_PSF_BUCKETS[3].color,
+    2.5, RENT_PSF_BUCKETS[4].color,
+    2.75, RENT_PSF_BUCKETS[5].color,
+    3.0, RENT_PSF_BUCKETS[6].color
+  ]
+];
+
+function renderRentPsfLegend() {
+  const rows = RENT_PSF_BUCKETS.map(
+    (b) => `<div class="legend-row"><span class="legend-swatch" style="background:${b.color}"></span>${b.label}</div>`
+  );
+  rows.push(`<div class="legend-row"><span class="legend-swatch" style="background:${NA_COLOR}"></span>N/A</div>`);
+  document.getElementById("dev-legend").innerHTML = rows.join("");
 }
 
-function numericBuckets(values, maxBuckets = 7) {
-  const nums = values.filter((v) => typeof v === "number" && !isNaN(v) && v > 0);
-  if (!nums.length) return [];
-  const min = Math.min(...nums);
-  const max = Math.max(...nums);
-  if (min === max) return [{ from: min, to: max }];
-
-  const step = niceStep((max - min) / (maxBuckets - 1));
-  const niceMin = Math.floor(min / step) * step;
-  const edges = [];
-  for (let v = niceMin; v < max + step; v += step) edges.push(v);
-  const trimmed = edges.slice(0, maxBuckets + 1);
-
-  const buckets = [];
-  for (let i = 0; i < trimmed.length - 1; i++) {
-    buckets.push({ from: trimmed[i], to: trimmed[i + 1] });
-  }
-  return buckets;
+function applyDevelopmentColorScheme() {
+  map.setPaintProperty("unclustered-point", "circle-color", RENT_PSF_COLOR_EXPR);
 }
 
-function applyDevelopmentColorScheme(filtered) {
-  const buckets = numericBuckets(filtered.map((p) => p.rentPSF));
-  const legendEl = document.getElementById("dev-legend");
-
-  if (!buckets.length) {
-    map.setPaintProperty("unclustered-point", "circle-color", "#9aa3ab");
-    legendEl.innerHTML = "";
-    return;
-  }
-
-  const expr = ["step", ["coalesce", ["get", "rentPSF"], 0], RAINBOW7[0]];
-  buckets.forEach((b, i) => {
-    if (i === 0) return;
-    expr.push(b.from, RAINBOW7[i % RAINBOW7.length]);
-  });
-  map.setPaintProperty("unclustered-point", "circle-color", expr);
-
-  legendEl.innerHTML = buckets
-    .map(
-      (b, i) =>
-        `<div class="legend-row"><span class="legend-swatch" style="background:${RAINBOW7[i % RAINBOW7.length]}"></span>$${b.from.toFixed(2)}–$${b.to.toFixed(2)}</div>`
-    )
-    .join("");
-}
 
 function devBasePool() {
-  return allProperties.filter((p) => p.yearBuilt && p.yearBuilt >= 2010);
+  return allProperties.filter((p) => p.yearBuilt && p.yearBuilt >= 2010 && p.type === "Multifamily");
 }
 
 function currentDevFacetValues(field) {
@@ -1120,7 +1138,7 @@ function currentDevFacetValues(field) {
 
 function matchesDevFacetFilters(p, f) {
   if (!p.yearBuilt || p.yearBuilt < 2010) return false; // hard floor: Development = 2010+
-  if (f.type.size && !f.type.has(p.type)) return false;
+  if (p.type !== "Multifamily") return false; // Development is Multifamily-only, no toggle
   if (f.submarket.size && !f.submarket.has(p.submarket)) return false;
   if (f.city.size && !f.city.has(p.city)) return false;
   if (f.developer.size && !f.developer.has(p.developerName)) return false;
@@ -1133,7 +1151,6 @@ function matchesDevFacetFilters(p, f) {
 
 function getDevFilterState() {
   return {
-    type: msDevType ? msDevType.getSelected() : new Set(),
     submarket: msDevSubmarket ? msDevSubmarket.getSelected() : new Set(),
     city: msDevCity ? msDevCity.getSelected() : new Set(),
     developer: msDevDeveloper ? msDevDeveloper.getSelected() : new Set(),
@@ -1161,11 +1178,8 @@ function currentDevShownProperties() {
 }
 
 function setupDevFilterUI() {
-  msDevType = buildMultiSelect(document.getElementById("dev-ms-type"), {
-    placeholder: "Property type",
-    getValues: () => currentDevFacetValues("type"),
-    onChange: applyCurrentPage
-  });
+  renderRentPsfLegend();
+
   msDevSubmarket = buildMultiSelect(document.getElementById("dev-ms-submarket"), {
     placeholder: "Submarket",
     getValues: () => currentDevFacetValues("submarket"),
@@ -1196,7 +1210,7 @@ function setupDevFilterUI() {
   );
 
   document.getElementById("dev-reset-btn").addEventListener("click", () => {
-    [msDevType, msDevSubmarket, msDevCity, msDevDeveloper, msDevExclude].forEach((ms) => ms.reset());
+    [msDevSubmarket, msDevCity, msDevDeveloper, msDevExclude].forEach((ms) => ms.reset());
     ["dev-year-min", "dev-year-max", "dev-units-min", "dev-units-max"].forEach(
       (id) => (document.getElementById(id).value = "")
     );
@@ -1228,6 +1242,55 @@ function updateDevStats(filtered) {
   const avgOcc = avgOf("occupancy");
   document.getElementById("dev-stat-occupancy").textContent =
     avgOcc != null ? `${(avgOcc <= 1 ? avgOcc * 100 : avgOcc).toFixed(0)}%` : "—";
+
+  const developerUnits = {};
+  filtered.forEach((p) => {
+    if (!p.developerName) return;
+    developerUnits[p.developerName] = (developerUnits[p.developerName] || 0) + (p.units || 0);
+  });
+  const topDevelopers = Object.entries(developerUnits).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  document.getElementById("dev-stat-developers").innerHTML = topDevelopers
+    .map(([name, units]) => `<div class="rank-row"><span>${escapeHTML(name)}</span><span class="n">${units.toLocaleString()}</span></div>`)
+    .join("");
+
+  renderDevChart(filtered);
+}
+
+// Bar chart: units built per year, 2010 through the current year, based on
+// whatever's currently shown (filtered + viewport-bounded, like the other stats).
+function renderDevChart(filtered) {
+  const currentYear = new Date().getFullYear();
+  const startYear = 2010;
+  const years = [];
+  for (let y = startYear; y <= currentYear; y++) years.push(y);
+
+  const totals = years.map((y) => filtered.filter((p) => p.yearBuilt === y).reduce((s, p) => s + (p.units || 0), 0));
+  const maxVal = Math.max(1, ...totals);
+
+  const w = 210, h = 110, padBottom = 14, padTop = 4;
+  const barW = w / years.length;
+
+  const bars = years
+    .map((y, i) => {
+      const val = totals[i];
+      const barH = (val / maxVal) * (h - padBottom - padTop);
+      const x = i * barW;
+      const y0 = h - padBottom - barH;
+      return `<rect x="${(x + 1).toFixed(1)}" y="${y0.toFixed(1)}" width="${(barW - 2).toFixed(1)}" height="${barH.toFixed(1)}" fill="#1a3a5c"><title>${y}: ${val.toLocaleString()} units</title></rect>`;
+    })
+    .join("");
+
+  const labelEvery = years.length > 12 ? 2 : 1;
+  const labels = years
+    .map((y, i) => {
+      if (i % labelEvery !== 0) return "";
+      const x = i * barW + barW / 2;
+      return `<text x="${x.toFixed(1)}" y="${h - 2}" font-size="7" text-anchor="middle" fill="#6b7688">${String(y).slice(2)}</text>`;
+    })
+    .join("");
+
+  document.getElementById("dev-chart").innerHTML =
+    `<svg viewBox="0 0 ${w} ${h}" width="100%" height="110" style="overflow:visible">${bars}${labels}</svg>`;
 }
 
 function applyDevelopmentPage() {
@@ -1235,7 +1298,7 @@ function applyDevelopmentPage() {
   map.getSource("properties").setData(toGeoJSON(shown));
   const viewportShown = boundedToViewport(shown);
   updateDevStats(viewportShown);
-  applyDevelopmentColorScheme(viewportShown);
+  applyDevelopmentColorScheme();
   if (msDevExclude) msDevExclude.refresh();
 }
 
@@ -1247,16 +1310,6 @@ function applyCurrentPage() {
   } else {
     applyAll();
   }
-}
-
-// The basemap toggle is a single shared component (one source of truth for
-// the actual active basemap) that gets physically moved into whichever page's
-// panel is currently visible, right above that page's own Reset button.
-function moveBasemapToggleToPage(page) {
-  const toggleEl = document.getElementById("basemap-toggle");
-  const anchorId = page === "development" ? "dev-reset-btn" : "reset-btn";
-  const anchor = document.getElementById(anchorId);
-  if (anchor) anchor.parentNode.insertBefore(toggleEl, anchor);
 }
 
 /* =========================================================
@@ -1273,7 +1326,6 @@ document.getElementById("page-switcher").addEventListener("change", (e) => {
   document.getElementById("stats-properties").style.display = page === "properties" ? "block" : "none";
   document.getElementById("stats-development").style.display = page === "development" ? "block" : "none";
 
-  moveBasemapToggleToPage(page);
   applyCurrentPage();
 });
 </script>
