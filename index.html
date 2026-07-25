@@ -284,7 +284,7 @@
 </head>
 <body>
 
-<div id="version-badge">v1</div>
+<div id="version-badge">v2</div>
 
 <div id="app">
   <div id="sidebar">
@@ -759,9 +759,17 @@ function toGeoJSON(props) {
       type: "Feature",
       geometry: { type: "Point", coordinates: [p.lng, p.lat] },
       properties: {
-        id: p.id, name: p.name, address: p.address, city: p.city, submarket: p.submarket,
-        ownerName: p.ownerName, yearBuilt: p.yearBuilt ?? 0, units: p.units ?? 0, yardiLink: p.yardiLink,
-        type: p.type, squareFeet: p.squareFeet
+        id: p.id,
+        name: p.name || "",
+        address: p.address || "",
+        city: p.city || "",
+        submarket: p.submarket || "",
+        ownerName: p.ownerName || "",
+        yearBuilt: p.yearBuilt ?? 0,
+        units: p.units ?? 0,
+        yardiLink: p.yardiLink || "",
+        type: p.type || "",
+        squareFeet: p.squareFeet ?? 0
       }
     }))
   };
