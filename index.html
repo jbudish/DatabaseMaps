@@ -19,7 +19,6 @@
   html, body { margin: 0; height: 100%; font-family: -apple-system, "Segoe UI", Inter, Arial, sans-serif; color: var(--ink); }
   #app { display: flex; height: 100%; }
 
-  /* ---------- LEFT FILTER PANEL ---------- */
   #sidebar {
     width: 300px;
     flex-shrink: 0;
@@ -28,8 +27,14 @@
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     overflow-y: auto;
+  }
+
+  .filter-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   #page-switcher {
@@ -40,7 +45,6 @@
     border: 1px solid var(--line);
     border-radius: 8px;
     background: #fff;
-    margin-bottom: 6px;
   }
 
   .filter-section-title {
@@ -49,7 +53,7 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--accent);
-    margin: 10px 0 2px;
+    margin: 4px 0 0;
   }
 
   #reset-btn {
@@ -61,7 +65,6 @@
     cursor: pointer;
     padding: 0;
     font-weight: 600;
-    margin-top: 4px;
   }
   #reset-btn:hover { text-decoration: underline; }
 
@@ -95,7 +98,7 @@
     cursor: pointer;
   }
   .ms-button.has-value { color: var(--ink); font-weight: 600; }
-.ms-panel {
+  .ms-panel {
     display: none;
     position: absolute;
     z-index: 30;
@@ -138,30 +141,9 @@
     font-weight: 600;
   }
 
-  /* ---------- MAP DESIGN (size/color) ---------- */
-  #map-design select {
-    width: 100%;
-    font-size: 13.5px;
-    padding: 8px 10px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    background: #fff;
-    margin-bottom: 6px;
-  }
-  #legend {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    font-size: 11.5px;
-    color: var(--ink-soft);
-    margin-top: 4px;
-  }
-  .legend-row { display: flex; align-items: center; gap: 6px; }
-  .legend-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-
   /* ---------- EXCLUDE CHECKLIST ---------- */
   #exclude-list {
-    max-height: 140px;
+    max-height: 160px;
     overflow-y: auto;
     border: 1px solid var(--line);
     border-radius: 7px;
@@ -236,39 +218,27 @@
     </select>
 
     <div id="filters-properties">
-      <div id="ms-type" class="ms-slot" data-field="type" data-placeholder="Property type"></div>
-      <div id="ms-submarket" class="ms-slot" data-field="submarket" data-placeholder="Submarket"></div>
-      <div id="ms-city" class="ms-slot" data-field="city" data-placeholder="City"></div>
+      <div class="filter-stack">
+        <div id="ms-type" class="ms-slot" data-field="type" data-placeholder="Property type"></div>
+        <div id="ms-submarket" class="ms-slot" data-field="submarket" data-placeholder="Submarket"></div>
+        <div id="ms-city" class="ms-slot" data-field="city" data-placeholder="City"></div>
 
-      <div class="range-row">
-        <input type="number" id="year-min" placeholder="Year built min" />
-        <span>to</span>
-        <input type="number" id="year-max" placeholder="Year built max" />
+        <div class="range-row">
+          <input type="number" id="year-min" placeholder="Year built min" />
+          <span>to</span>
+          <input type="number" id="year-max" placeholder="Year built max" />
+        </div>
+
+        <div class="range-row">
+          <input type="number" id="units-min" placeholder="Units min" />
+          <span>to</span>
+          <input type="number" id="units-max" placeholder="Units max" />
+        </div>
+
+        <div id="ms-owner" class="ms-slot" data-field="ownerName" data-placeholder="Owner"></div>
       </div>
-
-      <div class="range-row">
-        <input type="number" id="units-min" placeholder="Units min" />
-        <span>to</span>
-        <input type="number" id="units-max" placeholder="Units max" />
-      </div>
-
-      <div id="ms-owner" class="ms-slot" data-field="ownerName" data-placeholder="Owner"></div>
 
       <button id="reset-btn">Clear filters</button>
-
-      <div class="filter-section-title">Map Design</div>
-      <div id="map-design">
-        <select id="size-select">
-          <option value="units">Size by: Units</option>
-        </select>
-        <select id="color-select">
-          <option value="none">Color: none</option>
-          <option value="owner">Color by: Owner</option>
-          <option value="city">Color by: City</option>
-          <option value="yearBuilt">Color by: Year built</option>
-        </select>
-        <div id="legend"></div>
-      </div>
 
       <div class="filter-section-title">Exclude properties</div>
       <div id="exclude-list"></div>
@@ -316,9 +286,6 @@ let allProperties = [];
 let companyById = {};
 let excludedIds = new Set(); // session-only manual exclusions
 
-const RAINBOW = ["#c0392b", "#e08e4f", "#d4b106", "#1f8a4c", "#1c9e8e", "#1c5fa8", "#6b3fa0"];
-const OTHER_COLOR = "#9aa3ab";
-
 /* =========================================================
    LOAD
    ========================================================= */
@@ -352,7 +319,6 @@ function buildMultiSelect(containerEl, { placeholder, getValues, onChange }) {
   `;
 
   const btn = containerEl.querySelector(".ms-button");
-  const panel = containerEl.querySelector(".ms-panel");
   const search = containerEl.querySelector(".ms-search");
   const list = containerEl.querySelector(".ms-list");
   const footer = containerEl.querySelector(".ms-footer");
@@ -429,54 +395,30 @@ function normalizeUrl(url) {
 }
 
 /* =========================================================
-   BUCKETING (auto legend generation)
-   ========================================================= */
-function niceStep(roughStep) {
-  if (roughStep <= 0) return 1;
-  const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
-  const residual = roughStep / magnitude;
-  if (residual > 5) return 10 * magnitude;
-  if (residual > 2) return 5 * magnitude;
-  if (residual > 1) return 2 * magnitude;
-  return magnitude;
-}
-
-function numericBuckets(values, maxBuckets = 7) {
-  const nums = values.filter((v) => typeof v === "number" && !isNaN(v));
-  if (!nums.length) return [];
-  const min = Math.min(...nums);
-  const max = Math.max(...nums);
-  if (min === max) return [{ from: min, to: max, label: String(min) }];
-
-  const step = niceStep((max - min) / (maxBuckets - 1));
-  const niceMin = Math.floor(min / step) * step;
-  const edges = [];
-  for (let v = niceMin; v < max + step; v += step) edges.push(v);
-  const trimmed = edges.slice(0, maxBuckets + 1);
-
-  const buckets = [];
-  for (let i = 0; i < trimmed.length - 1; i++) {
-    buckets.push({ from: trimmed[i], to: trimmed[i + 1], label: `${trimmed[i].toLocaleString()}–${trimmed[i + 1].toLocaleString()}` });
-  }
-  return buckets;
-}
-
-function categoricalBuckets(values, maxBuckets = 7) {
-  const counts = {};
-  values.forEach((v) => {
-    if (!v) return;
-    counts[v] = (counts[v] || 0) + 1;
-  });
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  const top = sorted.slice(0, maxBuckets - 1).map(([v]) => v);
-  const hasOther = sorted.length > top.length;
-  return { top, hasOther };
-}
-
-/* =========================================================
    MAP
    ========================================================= */
 let map, msType, msSubmarket, msCity, msOwner;
+
+// Fixed size buckets: <25, <50, <100, <200, 200+ — max only 2x min radius
+const UNIT_SIZE_EXPR = [
+  "step", ["get", "units"],
+  5,
+  25, 6,
+  50, 7,
+  100, 8.5,
+  200, 10
+];
+
+// Fixed 6-bucket maroon -> navy gradient by year built
+const YEAR_COLOR_EXPR = [
+  "step", ["get", "yearBuilt"],
+  "#800000",
+  1930, "#66001a",
+  1950, "#4d0033",
+  1970, "#33004d",
+  1990, "#1a0066",
+  2010, "#000080"
+];
 
 function initMap() {
   map = new maplibregl.Map({
@@ -505,7 +447,7 @@ function initMap() {
       source: "properties",
       filter: ["has", "point_count"],
       paint: {
-        "circle-color": "#bf5700",
+        "circle-color": "#4d0033",
         "circle-radius": [
           "interpolate", ["linear"], ["get", "sum_units"],
           0, 14, 200, 20, 1000, 28, 5000, 36
@@ -530,8 +472,8 @@ function initMap() {
       source: "properties",
       filter: ["!", ["has", "point_count"]],
       paint: {
-        "circle-color": "#bf5700",
-        "circle-radius": ["interpolate", ["linear"], ["get", "units"], 0, 5, 100, 8, 400, 12, 1000, 16],
+        "circle-color": YEAR_COLOR_EXPR,
+        "circle-radius": UNIT_SIZE_EXPR,
         "circle-stroke-width": 2,
         "circle-stroke-color": "#ffffff"
       }
@@ -623,13 +565,9 @@ function setupFilterUI() {
     document.getElementById(id).addEventListener("input", applyAll)
   );
 
-  document.getElementById("size-select").addEventListener("change", applyAll);
-  document.getElementById("color-select").addEventListener("change", applyAll);
-
   document.getElementById("reset-btn").addEventListener("click", () => {
     [msType, msSubmarket, msCity, msOwner].forEach((ms) => ms.reset());
     ["year-min", "year-max", "units-min", "units-max"].forEach((id) => (document.getElementById(id).value = ""));
-    document.getElementById("color-select").value = "none";
     applyAll();
   });
 }
@@ -655,8 +593,9 @@ function numOrNull(id) {
   return v ? parseInt(v, 10) : null;
 }
 
-function matchesFilters(p, f) {
-  if (excludedIds.has(p.id)) return false;
+// Facet/range filters only — does NOT apply manual exclusions.
+// Used to determine what's "currently in view" for both the map and the exclude checklist.
+function matchesFacetFilters(p, f) {
   if (f.type.size && !f.type.has(p.type)) return false;
   if (f.submarket.size && !f.submarket.has(p.submarket)) return false;
   if (f.city.size && !f.city.has(p.city)) return false;
@@ -669,52 +608,17 @@ function matchesFilters(p, f) {
 }
 
 /* =========================================================
-   APPLY: filter map + stats + legend + exclude list
+   APPLY: filter map + stats + exclude list
    ========================================================= */
 function applyAll() {
   const state = getFilterState();
-  const filtered = allProperties.filter((p) => matchesFilters(p, state));
 
-  map.getSource("properties").setData(toGeoJSON(filtered));
-  updateColorStyle(filtered);
-  updateStats(filtered);
-  updateExcludeList(filtered.concat(allProperties.filter((p) => excludedIds.has(p.id))));
-}
+  const inView = allProperties.filter((p) => matchesFacetFilters(p, state));
+  const shown = inView.filter((p) => !excludedIds.has(p.id));
 
-function updateColorStyle(filtered) {
-  const field = document.getElementById("color-select").value;
-  const legend = document.getElementById("legend");
-
-  if (field === "none") {
-    map.setPaintProperty("unclustered-point", "circle-color", "#bf5700");
-    map.setPaintProperty("clusters", "circle-color", "#bf5700");
-    legend.innerHTML = "";
-    return;
-  }
-
-  if (field === "yearBuilt") {
-    const buckets = numericBuckets(filtered.map((p) => p.yearBuilt));
-    const expr = ["step", ["get", "yearBuilt"], RAINBOW[0]];
-    buckets.forEach((b, i) => {
-      if (i === 0) return;
-      expr.push(b.from, RAINBOW[i % RAINBOW.length]);
-    });
-    map.setPaintProperty("unclustered-point", "circle-color", expr);
-    legend.innerHTML = buckets
-      .map((b, i) => `<div class="legend-row"><span class="legend-swatch" style="background:${RAINBOW[i % RAINBOW.length]}"></span>${b.label}</div>`)
-      .join("");
-    return;
-  }
-
-  const key = field === "owner" ? "ownerName" : field;
-  const { top, hasOther } = categoricalBuckets(filtered.map((p) => p[key]));
-  const expr = ["match", ["get", key]];
-  top.forEach((v, i) => expr.push(v, RAINBOW[i % RAINBOW.length]));
-  expr.push(OTHER_COLOR);
-  map.setPaintProperty("unclustered-point", "circle-color", expr);
-  legend.innerHTML =
-    top.map((v, i) => `<div class="legend-row"><span class="legend-swatch" style="background:${RAINBOW[i % RAINBOW.length]}"></span>${escapeHTML(v)}</div>`).join("") +
-    (hasOther ? `<div class="legend-row"><span class="legend-swatch" style="background:${OTHER_COLOR}"></span>Other</div>` : "");
+  map.getSource("properties").setData(toGeoJSON(shown));
+  updateStats(shown);
+  updateExcludeList(inView);
 }
 
 function updateStats(filtered) {
@@ -733,16 +637,14 @@ function updateStats(filtered) {
     if (!p.ownerName) return;
     ownerUnits[p.ownerName] = (ownerUnits[p.ownerName] || 0) + (p.units || 0);
   });
-  const topOwners = Object.entries(ownerUnits).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topOwners = Object.entries(ownerUnits).sort((a, b) => b[1] - a[1]).slice(0, 10);
   document.getElementById("stat-owners").innerHTML = topOwners
     .map(([name, units]) => `<div class="rank-row"><span>${escapeHTML(name)}</span><span class="n">${units.toLocaleString()}</span></div>`)
     .join("");
 }
 
-function updateExcludeList(allVisible) {
-  const uniqueById = new Map();
-  allVisible.forEach((p) => uniqueById.set(p.id, p));
-  const list = [...uniqueById.values()].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+function updateExcludeList(inViewProperties) {
+  const list = [...inViewProperties].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   const el = document.getElementById("exclude-list");
   el.innerHTML = list
@@ -766,14 +668,3 @@ function updateExcludeList(allVisible) {
 
 /* =========================================================
    PAGE SWITCHER
-   ========================================================= */
-document.getElementById("page-switcher").addEventListener("change", (e) => {
-  const page = e.target.value;
-  document.getElementById("filters-properties").style.display = page === "properties" ? "block" : "none";
-  document.getElementById("filters-development").style.display = page === "development" ? "block" : "none";
-  document.getElementById("filters-sales").style.display = page === "sales" ? "block" : "none";
-});
-</script>
-
-</body>
-</html>
