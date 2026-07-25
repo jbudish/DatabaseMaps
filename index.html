@@ -17,78 +17,42 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; font-family: -apple-system, "Segoe UI", Inter, Arial, sans-serif; color: var(--ink); }
-
   #app { display: flex; height: 100%; }
 
+  /* ---------- LEFT FILTER PANEL ---------- */
   #sidebar {
-    width: 320px;
+    width: 300px;
     flex-shrink: 0;
     background: var(--panel);
     border-right: 1px solid var(--line);
-    padding: 20px 20px 20px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
     overflow-y: auto;
   }
 
-  #sidebar-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  #sidebar h1 {
-    font-size: 17px;
-    font-weight: 650;
-    margin: 0 0 2px;
-    letter-spacing: -0.01em;
-  }
-  #count {
-    font-size: 13px;
-    color: var(--ink-soft);
-  }
-  #count strong { color: var(--ink); font-weight: 650; }
-
-  #sidebar-close {
-    display: none;
-    background: none;
-    border: none;
-    font-size: 20px;
-    line-height: 1;
-    color: var(--ink-soft);
-    cursor: pointer;
-    padding: 4px;
-  }
-
-  .field { display: flex; flex-direction: column; gap: 6px; }
-  .field label {
-    font-size: 11px;
-    font-weight: 650;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--ink-soft);
-  }
-  .range-row { display: flex; gap: 8px; }
-  .range-row input { width: 100%; }
-
-  select, input[type="text"], input[type="number"] {
+  #page-switcher {
     font-family: inherit;
-    font-size: 14px;
-    padding: 8px 10px;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 10px 12px;
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: 8px;
     background: #fff;
-    color: var(--ink);
-    outline: none;
-  }
-  select:focus, input:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    margin-bottom: 6px;
   }
 
-  #reset {
+  .filter-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    margin: 10px 0 2px;
+  }
+
+  #reset-btn {
     align-self: flex-start;
     font-size: 12.5px;
     color: var(--accent);
@@ -97,499 +61,359 @@
     cursor: pointer;
     padding: 0;
     font-weight: 600;
+    margin-top: 4px;
   }
-  #reset:hover { text-decoration: underline; }
+  #reset-btn:hover { text-decoration: underline; }
 
+  input[type="text"], input[type="number"] {
+    font-family: inherit;
+    font-size: 13.5px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+    color: var(--ink);
+    outline: none;
+    width: 100%;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .range-row { display: flex; gap: 6px; align-items: center; }
+  .range-row span { color: var(--ink-soft); font-size: 12px; }
+
+  /* ---------- MULTI-SELECT WITH SEARCH ---------- */
+  .ms { position: relative; }
+  .ms-button {
+    width: 100%;
+    text-align: left;
+    font-size: 13.5px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .ms-button.has-value { color: var(--ink); font-weight: 600; }
+  .ms-panel {
+    display: none;
+    position: absolute;
+    z-index: 30;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    max-height: 280px;
+    display: flex;
+    flex-direction: column;
+  }
+  .ms.open .ms-panel { display: flex; }
+  .ms-search {
+    border: none;
+    border-bottom: 1px solid var(--line);
+    border-radius: 8px 8px 0 0;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .ms-list { overflow-y: auto; padding: 4px 0; }
+  .ms-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .ms-option:hover { background: var(--accent-soft); }
+  .ms-option input { width: auto; }
+  .ms-footer {
+    border-top: 1px solid var(--line);
+    padding: 6px 10px;
+    font-size: 11.5px;
+    color: var(--accent);
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  /* ---------- MAP DESIGN (size/color) ---------- */
+  #map-design select {
+    width: 100%;
+    font-size: 13.5px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+    margin-bottom: 6px;
+  }
+  #legend {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    margin-top: 4px;
+  }
+  .legend-row { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ---------- EXCLUDE CHECKLIST ---------- */
+  #exclude-list {
+    max-height: 140px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  #exclude-list label { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+
+  /* ---------- MAP + STATS ---------- */
+  #map-wrap { flex: 1; position: relative; display: flex; }
   #map { flex: 1; position: relative; }
+  #stats {
+    width: 230px;
+    flex-shrink: 0;
+    background: #fff;
+    border-left: 1px solid var(--line);
+    padding: 20px 16px;
+    overflow-y: auto;
+  }
+  .stat-block { margin-bottom: 18px; }
+  .stat-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+  }
+  .stat-value { font-size: 24px; font-weight: 700; margin-top: 2px; }
+  .rank-list { margin-top: 4px; }
+  .rank-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13.5px;
+    font-weight: 650;
+    padding: 3px 0;
+  }
+  .rank-row .n { color: var(--ink-soft); font-weight: 500; }
+
+  #loading {
+    position: absolute; inset: 0; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--ink-soft); z-index: 5;
+  }
 
   .maplibregl-popup-content {
-    font-family: inherit;
-    font-size: 13px;
-    padding: 14px 16px;
-    border-radius: 8px;
-    box-shadow: 0 6px 24px rgba(28,37,48,0.15);
-    min-width: 210px;
+    font-family: inherit; font-size: 13px; padding: 14px 16px;
+    border-radius: 8px; box-shadow: 0 6px 24px rgba(28,37,48,0.15); min-width: 210px;
   }
   .popup-name { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
   .popup-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
   .popup-row .k { color: var(--ink-soft); }
   .popup-row .v { font-weight: 600; text-align: right; }
   .popup-link {
-    display: inline-block;
-    margin-top: 8px;
-    font-size: 12.5px;
-    font-weight: 650;
-    color: var(--accent);
-    text-decoration: none;
+    display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 650;
+    color: var(--accent); text-decoration: none;
   }
   .popup-link:hover { text-decoration: underline; }
 
-  #loading {
-    position: absolute;
-    inset: 0;
-    background: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    color: var(--ink-soft);
-    z-index: 5;
-  }
-
-  #mobile-filter-toggle {
-    display: none;
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 15;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 999px;
-    padding: 12px 20px;
-    font-size: 14px;
-    font-weight: 700;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
-    cursor: pointer;
-  }
-
-  #sidebar-backdrop {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.35);
-    z-index: 18;
-  }
-
-  @media (max-width: 768px) {
-    #app { flex-direction: column; }
-
-    #sidebar {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      top: auto;
-      width: 100%;
-      max-height: 78vh;
-      transform: translateY(100%);
-      transition: transform 0.25s ease;
-      z-index: 20;
-      border-right: none;
-      border-top: 1px solid var(--line);
-      border-radius: 16px 16px 0 0;
-      box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
-    }
-
-    #sidebar.open { transform: translateY(0); }
-
-    #sidebar-close { display: block; }
-
-    #map { width: 100%; }
-
-    #mobile-filter-toggle { display: block; }
-
-    #sidebar-backdrop.open { display: block; }
+  .coming-soon {
+    padding: 30px 10px; text-align: center; color: var(--ink-soft); font-size: 13.5px;
   }
 </style>
 </head>
 <body>
 
 <div id="app">
-  <div id="sidebar-backdrop"></div>
-
   <div id="sidebar">
-    <div id="sidebar-header">
-      <div>
-        <h1>Property Map</h1>
-        <div id="count">Loading…</div>
-      </div>
-      <button id="sidebar-close" aria-label="Close filters">✕</button>
-    </div>
+    <select id="page-switcher">
+      <option value="properties">Properties</option>
+      <option value="development">Development</option>
+      <option value="sales">Sales</option>
+    </select>
 
-    <div class="field">
-      <label for="type-filter">Type</label>
-      <select id="type-filter"><option value="">All types</option></select>
-    </div>
+    <div id="filters-properties">
+      <div id="ms-type" class="ms-slot" data-field="type" data-placeholder="Property type"></div>
+      <div id="ms-submarket" class="ms-slot" data-field="submarket" data-placeholder="Submarket"></div>
+      <div id="ms-city" class="ms-slot" data-field="city" data-placeholder="City"></div>
 
-    <div class="field">
-      <label for="submarket-filter">Submarket</label>
-      <select id="submarket-filter"><option value="">All submarkets</option></select>
-    </div>
-
-    <div class="field">
-      <label for="city-filter">City</label>
-      <select id="city-filter"><option value="">All cities</option></select>
-    </div>
-
-    <div class="field">
-      <label for="stage-filter">Stage</label>
-      <select id="stage-filter"><option value="">All stages</option></select>
-    </div>
-
-    <div class="field">
-      <label for="broker-filter">Broker seller</label>
-      <select id="broker-filter"><option value="">All brokers</option></select>
-    </div>
-
-    <div class="field">
-      <label>Year built</label>
       <div class="range-row">
-        <input type="number" id="year-min" placeholder="Min" />
-        <input type="number" id="year-max" placeholder="Max" />
+        <input type="number" id="year-min" placeholder="Year built min" />
+        <span>to</span>
+        <input type="number" id="year-max" placeholder="Year built max" />
       </div>
-    </div>
 
-    <div class="field">
-      <label>Units</label>
       <div class="range-row">
-        <input type="number" id="units-min" placeholder="Min" />
-        <input type="number" id="units-max" placeholder="Max" />
+        <input type="number" id="units-min" placeholder="Units min" />
+        <span>to</span>
+        <input type="number" id="units-max" placeholder="Units max" />
       </div>
+
+      <div id="ms-owner" class="ms-slot" data-field="ownerName" data-placeholder="Owner"></div>
+
+      <button id="reset-btn">Clear filters</button>
+
+      <div class="filter-section-title">Map Design</div>
+      <div id="map-design">
+        <select id="size-select">
+          <option value="units">Size by: Units</option>
+        </select>
+        <select id="color-select">
+          <option value="none">Color: none</option>
+          <option value="owner">Color by: Owner</option>
+          <option value="city">Color by: City</option>
+          <option value="yearBuilt">Color by: Year built</option>
+        </select>
+        <div id="legend"></div>
+      </div>
+
+      <div class="filter-section-title">Exclude properties</div>
+      <div id="exclude-list"></div>
     </div>
 
-    <div class="field">
-      <label for="owner-filter">Owner contains</label>
-      <input type="text" id="owner-filter" placeholder="e.g. Murtaugh" />
+    <div id="filters-development" style="display:none;">
+      <div class="coming-soon">Development page — coming in the next phase.</div>
     </div>
 
-    <div class="field">
-      <label for="close-filter">Recently Sold &amp; On Market</label>
-      <select id="close-filter">
-        <option value="">Any time</option>
-        <option value="future">Future</option>
-        <option value="30">Last 30 days</option>
-        <option value="90">Last 90 days</option>
-        <option value="180">Last 6 months</option>
-        <option value="365">Last year</option>
-        <option value="730">Last 2 years</option>
-      </select>
+    <div id="filters-sales" style="display:none;">
+      <div class="coming-soon">Sales page — coming in the next phase.</div>
     </div>
-
-    <button id="reset">Clear filters</button>
   </div>
 
-  <button id="mobile-filter-toggle">Filters</button>
-
-  <div id="map">
-    <div id="loading">Loading properties…</div>
+  <div id="map-wrap">
+    <div id="map">
+      <div id="loading">Loading properties…</div>
+    </div>
+    <div id="stats">
+      <div class="stat-block">
+        <div class="stat-label">Properties</div>
+        <div class="stat-value" id="stat-count">—</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Units</div>
+        <div class="stat-value" id="stat-units">—</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Avg year built</div>
+        <div class="stat-value" id="stat-year">—</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Largest owners</div>
+        <div class="rank-list" id="stat-owners"></div>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
-const DATA_URL = "data/properties.json";
-
+/* =========================================================
+   DATA
+   ========================================================= */
 let allProperties = [];
+let companyById = {};
+let excludedIds = new Set(); // session-only manual exclusions
 
-const STAGE_ORDER = [
-  "Closed",
-  "Under Contract - Non-Contingent",
-  "Under Contract - Contingent",
-  "Active - Listed",
-  "Active - Off Market",
-  "Active - Awarded",
-  "Pursuit - BOV",
-  "Pursuit - Underwriting",
-  "Tracking",
-  "On Hold",
-  "Didn't Sell",
-  "Lost"
-];
+const RAINBOW = ["#c0392b", "#e08e4f", "#d4b106", "#1f8a4c", "#1c9e8e", "#1c5fa8", "#6b3fa0"];
+const OTHER_COLOR = "#9aa3ab";
 
-const STAGE_COLORS = {
-  "Closed": { color: "#1f8a4c", bg: "#d3f2dd" },
-  "Under Contract - Non-Contingent": { color: "#c0392b", bg: "#fbdcd8" },
-  "Under Contract - Contingent": { color: "#c2185b", bg: "#fbdce9" },
-  "Active - Listed": { color: "#a8710a", bg: "#fdf0cf" },
-  "Active - Off Market": { color: "#a8710a", bg: "#fdf0cf" },
-  "Active - Awarded": { color: "#a8710a", bg: "#fdf0cf" },
-  "Pursuit - BOV": { color: "#c1670e", bg: "#fde3cc" },
-  "Pursuit - Underwriting": { color: "#c1670e", bg: "#fde3cc" },
-  "Tracking": { color: "#1c5fa8", bg: "#d9e8fb" },
-  "On Hold": { color: "#5c6773", bg: "#e6e8eb" },
-  "Didn't Sell": { color: "#5c6773", bg: "#e6e8eb" },
-  "Lost": { color: "#5c6773", bg: "#e6e8eb" }
-};
-
-const map = new maplibregl.Map({
-  container: "map",
-  style: "https://tiles.openfreemap.org/styles/liberty",
-  center: [-93.2, 44.9],
-  zoom: 8
-});
-
-map.addControl(new maplibregl.NavigationControl(), "top-right");
-
-map.on("load", async () => {
-  const res = await fetch(DATA_URL);
-  allProperties = await res.json();
+/* =========================================================
+   LOAD
+   ========================================================= */
+Promise.all([
+  fetch("data/properties.json").then((r) => r.json()),
+  fetch("data/companies.json").then((r) => r.json())
+]).then(([props, companies]) => {
+  companyById = Object.fromEntries(companies.map((c) => [c.id, c.name]));
+  allProperties = props.map((p) => ({
+    ...p,
+    ownerName: companyById[p.ownerId] || "",
+    developerName: companyById[p.developerId] || ""
+  }));
 
   document.getElementById("loading").style.display = "none";
-
-  map.addSource("properties", {
-    type: "geojson",
-    data: toGeoJSON(allProperties),
-    cluster: true,
-    clusterMaxZoom: 14,
-    clusterRadius: 45
-  });
-
-  map.addLayer({
-    id: "clusters",
-    type: "circle",
-    source: "properties",
-    filter: ["has", "point_count"],
-    paint: {
-      "circle-color": [
-        "step", ["get", "point_count"],
-        "#f2b988", 25,
-        "#e08e4f", 100,
-        "#bf5700", 500,
-        "#8a3d00"
-      ],
-      "circle-radius": [
-        "step", ["get", "point_count"],
-        14, 25,
-        18, 100,
-        24, 500,
-        30
-      ],
-      "circle-stroke-width": 2,
-      "circle-stroke-color": "#ffffff"
-    }
-  });
-
-  map.addLayer({
-    id: "cluster-count",
-    type: "symbol",
-    source: "properties",
-    filter: ["has", "point_count"],
-    layout: {
-      "text-field": ["get", "point_count_abbreviated"],
-      "text-font": ["Noto Sans Bold"],
-      "text-size": 12
-    },
-    paint: { "text-color": "#ffffff" }
-  });
-
-  map.addLayer({
-    id: "unclustered-point",
-    type: "circle",
-    source: "properties",
-    filter: ["!", ["has", "point_count"]],
-    paint: {
-      "circle-color": "#bf5700",
-      "circle-radius": 6,
-      "circle-stroke-width": 2,
-      "circle-stroke-color": "#ffffff"
-    }
-  });
-
-  map.on("click", "clusters", (e) => {
-    const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
-    const clusterId = features[0].properties.cluster_id;
-    map.getSource("properties").getClusterExpansionZoom(clusterId, (err, zoom) => {
-      if (err) return;
-      map.easeTo({ center: features[0].geometry.coordinates, zoom });
-    });
-  });
-
-  map.on("click", "unclustered-point", (e) => {
-    const f = e.features[0];
-    const coords = f.geometry.coordinates.slice();
-    const p = f.properties;
-
-    const rows = [
-      ["City", p.city],
-      ["Owner", p.owner],
-      ["Units", p.units || "—"],
-      ["Year built", p.yearBuilt || "—"],
-      ["Stage", p.stage || "—"],
-      ["Guidance", formatCurrency(p.guidance)],
-      ["Guidance/unit", formatCurrency(p.guidancePerUnit)]
-    ].map(([k, v]) => `
-      <div class="popup-row">
-        <span class="k">${escapeHTML(k)}</span>
-        <span class="v">${escapeHTML(String(v || "—"))}</span>
-      </div>
-    `).join("");
-
-    const link = p.yardiLink
-      ? `<a class="popup-link" href="${escapeAttr(normalizeUrl(p.yardiLink))}" target="_blank" rel="noopener">View in Yardi →</a>`
-      : "";
-
-    new maplibregl.Popup({ offset: 10 })
-      .setLngLat(coords)
-      .setHTML(`
-        <div class="popup-name">${escapeHTML(p.name || "Unnamed property")}</div>
-        ${rows}
-        ${link}
-      `)
-      .addTo(map);
-  });
-
-  ["clusters", "unclustered-point"].forEach((layer) => {
-    map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
-    map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
-  });
-
-  applyFilters();
+  initMap();
 });
 
-function toGeoJSON(props) {
-  return {
-    type: "FeatureCollection",
-    features: props.map((p) => ({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [p.lng, p.lat] },
-      properties: {
-        id: p.id,
-        name: p.name,
-        owner: p.owner,
-        city: p.city,
-        units: p.units,
-        yearBuilt: p.yearBuilt,
-        yardiLink: p.yardiLink,
-        stage: p.stage,
-        guidance: p.guidance,
-        guidancePerUnit: p.guidancePerUnit
-      }
-    }))
-  };
-}
+/* =========================================================
+   MULTI-SELECT WITH SEARCH (reusable)
+   ========================================================= */
+function buildMultiSelect(containerEl, { placeholder, getValues, onChange }) {
+  containerEl.classList.add("ms");
+  containerEl.innerHTML = `
+    <button type="button" class="ms-button">${placeholder}</button>
+    <div class="ms-panel">
+      <input type="text" class="ms-search" placeholder="Search…" />
+      <div class="ms-list"></div>
+      <div class="ms-footer">Clear</div>
+    </div>
+  `;
 
-function uniqueSorted(values) {
-  return [...new Set(values.filter(Boolean))].sort();
-}
+  const btn = containerEl.querySelector(".ms-button");
+  const panel = containerEl.querySelector(".ms-panel");
+  const search = containerEl.querySelector(".ms-search");
+  const list = containerEl.querySelector(".ms-list");
+  const footer = containerEl.querySelector(".ms-footer");
 
-function rebuildSelect(id, values, placeholder) {
-  const select = document.getElementById(id);
-  const prevValue = select.value;
-  select.innerHTML =
-    `<option value="">${placeholder}</option>` +
-    values.map((v) => `<option value="${escapeAttr(v)}">${escapeHTML(v)}</option>`).join("");
-  select.value = values.includes(prevValue) ? prevValue : "";
-}
+  let selected = new Set();
 
-function rebuildStageSelect(values) {
-  const select = document.getElementById("stage-filter");
-  const prevValue = select.value;
-  const present = new Set(values);
-  const ordered = STAGE_ORDER.filter((s) => present.has(s));
-  select.innerHTML =
-    `<option value="">All stages</option>` +
-    ordered
-      .map((s) => {
-        const c = STAGE_COLORS[s] || { color: "#1c2530", bg: "#ffffff" };
-        return `<option value="${escapeAttr(s)}" style="color:${c.color};background-color:${c.bg};">${escapeHTML(s)}</option>`;
-      })
+  function render() {
+    const term = search.value.trim().toLowerCase();
+    const values = getValues().filter((v) => v.toLowerCase().includes(term));
+    list.innerHTML = values
+      .map(
+        (v) => `
+      <label class="ms-option">
+        <input type="checkbox" value="${escapeAttr(v)}" ${selected.has(v) ? "checked" : ""} />
+        <span>${escapeHTML(v)}</span>
+      </label>`
+      )
       .join("");
-  select.value = ordered.includes(prevValue) ? prevValue : "";
-}
 
-function updateCount(shown, total) {
-  document.getElementById("count").innerHTML =
-    shown === total
-      ? `<strong>${total.toLocaleString()}</strong> properties`
-      : `<strong>${shown.toLocaleString()}</strong> of ${total.toLocaleString()} properties`;
+    btn.textContent =
+      selected.size === 0 ? placeholder : selected.size === 1 ? [...selected][0] : `${placeholder} (${selected.size})`;
+    btn.classList.toggle("has-value", selected.size > 0);
 
-  const toggle = document.getElementById("mobile-filter-toggle");
-  toggle.textContent = shown === total ? "Filters" : `Filters (${shown.toLocaleString()})`;
-}
-
-function formatCurrency(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const n = Number(value);
-  if (isNaN(n)) return null;
-  if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n.toFixed(0)}`;
-}
-
-function normalizeUrl(url) {
-  if (!url) return "#";
-  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
-}
-
-function getFilterState() {
-  return {
-    type: document.getElementById("type-filter").value,
-    submarket: document.getElementById("submarket-filter").value,
-    city: document.getElementById("city-filter").value,
-    stage: document.getElementById("stage-filter").value,
-    broker: document.getElementById("broker-filter").value,
-    yearMin: document.getElementById("year-min").value ? parseInt(document.getElementById("year-min").value, 10) : null,
-    yearMax: document.getElementById("year-max").value ? parseInt(document.getElementById("year-max").value, 10) : null,
-    unitsMin: document.getElementById("units-min").value ? parseInt(document.getElementById("units-min").value, 10) : null,
-    unitsMax: document.getElementById("units-max").value ? parseInt(document.getElementById("units-max").value, 10) : null,
-    ownerQuery: document.getElementById("owner-filter").value.trim().toLowerCase(),
-    closeMode: document.getElementById("close-filter").value
-  };
-}
-
-function matchesFilters(p, f, excludeKey) {
-  if (f.type && excludeKey !== "type" && p.type !== f.type) return false;
-  if (f.submarket && excludeKey !== "submarket" && p.submarket !== f.submarket) return false;
-  if (f.city && excludeKey !== "city" && p.city !== f.city) return false;
-  if (f.stage && excludeKey !== "stage" && p.stage !== f.stage) return false;
-  if (f.broker && excludeKey !== "broker" && p.brokerSeller !== f.broker) return false;
-
-  if (f.yearMin !== null && (!p.yearBuilt || p.yearBuilt < f.yearMin)) return false;
-  if (f.yearMax !== null && (!p.yearBuilt || p.yearBuilt > f.yearMax)) return false;
-  if (f.unitsMin !== null && (!p.units || p.units < f.unitsMin)) return false;
-  if (f.unitsMax !== null && (!p.units || p.units > f.unitsMax)) return false;
-  if (f.ownerQuery && !(p.owner || "").toLowerCase().includes(f.ownerQuery)) return false;
-
-  if (f.closeMode) {
-    if (!p.close) return false;
-    const d = new Date(p.close);
-    if (isNaN(d)) return false;
-    const now = new Date();
-    if (f.closeMode === "future") {
-      if (d <= now) return false;
-    } else {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - parseInt(f.closeMode, 10));
-      if (d < cutoff || d > now) return false;
-    }
+    list.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        if (cb.checked) selected.add(cb.value);
+        else selected.delete(cb.value);
+        render();
+        onChange(selected);
+      });
+    });
   }
 
-  return true;
-}
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".ms.open").forEach((el) => {
+      if (el !== containerEl) el.classList.remove("open");
+    });
+    containerEl.classList.toggle("open");
+    if (containerEl.classList.contains("open")) render();
+  });
 
-function updateFacetOptions(state) {
-  rebuildSelect(
-    "type-filter",
-    uniqueSorted(allProperties.filter((p) => matchesFilters(p, state, "type")).map((p) => p.type)),
-    "All types"
-  );
-  rebuildSelect(
-    "submarket-filter",
-    uniqueSorted(allProperties.filter((p) => matchesFilters(p, state, "submarket")).map((p) => p.submarket)),
-    "All submarkets"
-  );
-  rebuildSelect(
-    "city-filter",
-    uniqueSorted(allProperties.filter((p) => matchesFilters(p, state, "city")).map((p) => p.city)),
-    "All cities"
-  );
-  rebuildStageSelect(
-    uniqueSorted(allProperties.filter((p) => matchesFilters(p, state, "stage")).map((p) => p.stage))
-  );
-  rebuildSelect(
-    "broker-filter",
-    uniqueSorted(allProperties.filter((p) => matchesFilters(p, state, "broker")).map((p) => p.brokerSeller)),
-    "All brokers"
-  );
-}
+  search.addEventListener("input", render);
+  footer.addEventListener("click", () => {
+    selected = new Set();
+    render();
+    onChange(selected);
+  });
 
-function applyFilters() {
-  const state = getFilterState();
-  const filtered = allProperties.filter((p) => matchesFilters(p, state, null));
+  document.addEventListener("click", (e) => {
+    if (!containerEl.contains(e.target)) containerEl.classList.remove("open");
+  });
 
-  map.getSource("properties").setData(toGeoJSON(filtered));
-  updateCount(filtered.length, allProperties.length);
-  updateFacetOptions(state);
+  return {
+    getSelected: () => selected,
+    reset: () => {
+      selected = new Set();
+      render();
+    },
+    refresh: render
+  };
 }
 
 function escapeHTML(str) {
@@ -600,43 +424,356 @@ function escapeHTML(str) {
 function escapeAttr(str) {
   return escapeHTML(str).replace(/"/g, "&quot;");
 }
+function normalizeUrl(url) {
+  if (!url) return "#";
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
 
-[
-  "type-filter", "submarket-filter", "city-filter", "stage-filter", "broker-filter",
-  "year-min", "year-max", "units-min", "units-max", "owner-filter", "close-filter"
-].forEach((id) => {
-  const el = document.getElementById(id);
-  el.addEventListener(el.tagName === "SELECT" ? "change" : "input", applyFilters);
-});
+/* =========================================================
+   BUCKETING (auto legend generation)
+   ========================================================= */
+function niceStep(roughStep) {
+  if (roughStep <= 0) return 1;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const residual = roughStep / magnitude;
+  if (residual > 5) return 10 * magnitude;
+  if (residual > 2) return 5 * magnitude;
+  if (residual > 1) return 2 * magnitude;
+  return magnitude;
+}
 
-document.getElementById("reset").addEventListener("click", () => {
-  ["type-filter", "submarket-filter", "city-filter", "stage-filter", "broker-filter"].forEach(
-    (id) => (document.getElementById(id).value = "")
+function numericBuckets(values, maxBuckets = 7) {
+  const nums = values.filter((v) => typeof v === "number" && !isNaN(v));
+  if (!nums.length) return [];
+  const min = Math.min(...nums);
+  const max = Math.max(...nums);
+  if (min === max) return [{ from: min, to: max, label: String(min) }];
+
+  const step = niceStep((max - min) / (maxBuckets - 1));
+  const niceMin = Math.floor(min / step) * step;
+  const edges = [];
+  for (let v = niceMin; v < max + step; v += step) edges.push(v);
+  const trimmed = edges.slice(0, maxBuckets + 1);
+
+  const buckets = [];
+  for (let i = 0; i < trimmed.length - 1; i++) {
+    buckets.push({ from: trimmed[i], to: trimmed[i + 1], label: `${trimmed[i].toLocaleString()}–${trimmed[i + 1].toLocaleString()}` });
+  }
+  return buckets;
+}
+
+function categoricalBuckets(values, maxBuckets = 7) {
+  const counts = {};
+  values.forEach((v) => {
+    if (!v) return;
+    counts[v] = (counts[v] || 0) + 1;
+  });
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, maxBuckets - 1).map(([v]) => v);
+  const hasOther = sorted.length > top.length;
+  return { top, hasOther };
+}
+
+/* =========================================================
+   MAP
+   ========================================================= */
+let map, msType, msSubmarket, msCity, msOwner;
+
+function initMap() {
+  map = new maplibregl.Map({
+    container: "map",
+    style: "https://tiles.openfreemap.org/styles/liberty",
+    center: [-93.2, 44.9],
+    zoom: 8
+  });
+  map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+  map.on("load", () => {
+    map.addSource("properties", {
+      type: "geojson",
+      data: toGeoJSON(allProperties),
+      cluster: true,
+      clusterMaxZoom: 14,
+      clusterRadius: 45,
+      clusterProperties: {
+        sum_units: ["+", ["get", "units"]]
+      }
+    });
+
+    map.addLayer({
+      id: "clusters",
+      type: "circle",
+      source: "properties",
+      filter: ["has", "point_count"],
+      paint: {
+        "circle-color": "#bf5700",
+        "circle-radius": [
+          "interpolate", ["linear"], ["get", "sum_units"],
+          0, 14, 200, 20, 1000, 28, 5000, 36
+        ],
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "#ffffff"
+      }
+    });
+
+    map.addLayer({
+      id: "cluster-count",
+      type: "symbol",
+      source: "properties",
+      filter: ["has", "point_count"],
+      layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": ["Noto Sans Bold"], "text-size": 12 },
+      paint: { "text-color": "#ffffff" }
+    });
+
+    map.addLayer({
+      id: "unclustered-point",
+      type: "circle",
+      source: "properties",
+      filter: ["!", ["has", "point_count"]],
+      paint: {
+        "circle-color": "#bf5700",
+        "circle-radius": ["interpolate", ["linear"], ["get", "units"], 0, 5, 100, 8, 400, 12, 1000, 16],
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "#ffffff"
+      }
+    });
+
+    map.on("click", "clusters", (e) => {
+      const f = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+      map.getSource("properties").getClusterExpansionZoom(f[0].properties.cluster_id, (err, zoom) => {
+        if (err) return;
+        map.easeTo({ center: f[0].geometry.coordinates, zoom });
+      });
+    });
+
+    map.on("click", "unclustered-point", (e) => {
+      const p = e.features[0].properties;
+      const rows = [
+        ["Address", p.address],
+        ["City", p.city],
+        ["Submarket", p.submarket],
+        ["Owner", p.ownerName],
+        ["Year built", p.yearBuilt],
+        ["Units", p.units]
+      ]
+        .map(
+          ([k, v]) => `<div class="popup-row"><span class="k">${escapeHTML(k)}</span><span class="v">${escapeHTML(
+            String(v || "—")
+          )}</span></div>`
+        )
+        .join("");
+      const link = p.yardiLink
+        ? `<a class="popup-link" href="${escapeAttr(normalizeUrl(p.yardiLink))}" target="_blank" rel="noopener">View in Yardi →</a>`
+        : "";
+      new maplibregl.Popup({ offset: 10 })
+        .setLngLat(e.features[0].geometry.coordinates.slice())
+        .setHTML(`<div class="popup-name">${escapeHTML(p.name || "Unnamed property")}</div>${rows}${link}`)
+        .addTo(map);
+    });
+
+    ["clusters", "unclustered-point"].forEach((l) => {
+      map.on("mouseenter", l, () => (map.getCanvas().style.cursor = "pointer"));
+      map.on("mouseleave", l, () => (map.getCanvas().style.cursor = ""));
+    });
+
+    setupFilterUI();
+    applyAll();
+  });
+}
+
+function toGeoJSON(props) {
+  return {
+    type: "FeatureCollection",
+    features: props.map((p) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+      properties: {
+        id: p.id, name: p.name, address: p.address, city: p.city, submarket: p.submarket,
+        ownerName: p.ownerName, yearBuilt: p.yearBuilt, units: p.units, yardiLink: p.yardiLink
+      }
+    }))
+  };
+}
+
+/* =========================================================
+   FILTER UI SETUP
+   ========================================================= */
+function setupFilterUI() {
+  msType = buildMultiSelect(document.getElementById("ms-type"), {
+    placeholder: "Property type",
+    getValues: () => currentFacetValues("type"),
+    onChange: applyAll
+  });
+  msSubmarket = buildMultiSelect(document.getElementById("ms-submarket"), {
+    placeholder: "Submarket",
+    getValues: () => currentFacetValues("submarket"),
+    onChange: applyAll
+  });
+  msCity = buildMultiSelect(document.getElementById("ms-city"), {
+    placeholder: "City",
+    getValues: () => currentFacetValues("city"),
+    onChange: applyAll
+  });
+  msOwner = buildMultiSelect(document.getElementById("ms-owner"), {
+    placeholder: "Owner",
+    getValues: () => currentFacetValues("ownerName"),
+    onChange: applyAll
+  });
+
+  ["year-min", "year-max", "units-min", "units-max"].forEach((id) =>
+    document.getElementById(id).addEventListener("input", applyAll)
   );
-  document.getElementById("year-min").value = "";
-  document.getElementById("year-max").value = "";
-  document.getElementById("units-min").value = "";
-  document.getElementById("units-max").value = "";
-  document.getElementById("owner-filter").value = "";
-  document.getElementById("close-filter").value = "";
-  applyFilters();
+
+  document.getElementById("size-select").addEventListener("change", applyAll);
+  document.getElementById("color-select").addEventListener("change", applyAll);
+
+  document.getElementById("reset-btn").addEventListener("click", () => {
+    [msType, msSubmarket, msCity, msOwner].forEach((ms) => ms.reset());
+    ["year-min", "year-max", "units-min", "units-max"].forEach((id) => (document.getElementById(id).value = ""));
+    document.getElementById("color-select").value = "none";
+    applyAll();
+  });
+}
+
+function currentFacetValues(field) {
+  return [...new Set(allProperties.map((p) => p[field]).filter(Boolean))].sort();
+}
+
+function getFilterState() {
+  return {
+    type: msType ? msType.getSelected() : new Set(),
+    submarket: msSubmarket ? msSubmarket.getSelected() : new Set(),
+    city: msCity ? msCity.getSelected() : new Set(),
+    owner: msOwner ? msOwner.getSelected() : new Set(),
+    yearMin: numOrNull("year-min"),
+    yearMax: numOrNull("year-max"),
+    unitsMin: numOrNull("units-min"),
+    unitsMax: numOrNull("units-max")
+  };
+}
+function numOrNull(id) {
+  const v = document.getElementById(id).value;
+  return v ? parseInt(v, 10) : null;
+}
+
+function matchesFilters(p, f) {
+  if (excludedIds.has(p.id)) return false;
+  if (f.type.size && !f.type.has(p.type)) return false;
+  if (f.submarket.size && !f.submarket.has(p.submarket)) return false;
+  if (f.city.size && !f.city.has(p.city)) return false;
+  if (f.owner.size && !f.owner.has(p.ownerName)) return false;
+  if (f.yearMin !== null && (!p.yearBuilt || p.yearBuilt < f.yearMin)) return false;
+  if (f.yearMax !== null && (!p.yearBuilt || p.yearBuilt > f.yearMax)) return false;
+  if (f.unitsMin !== null && (!p.units || p.units < f.unitsMin)) return false;
+  if (f.unitsMax !== null && (!p.units || p.units > f.unitsMax)) return false;
+  return true;
+}
+
+/* =========================================================
+   APPLY: filter map + stats + legend + exclude list
+   ========================================================= */
+function applyAll() {
+  const state = getFilterState();
+  const filtered = allProperties.filter((p) => matchesFilters(p, state));
+
+  map.getSource("properties").setData(toGeoJSON(filtered));
+  updateColorStyle(filtered);
+  updateStats(filtered);
+  updateExcludeList(filtered.concat(allProperties.filter((p) => excludedIds.has(p.id))));
+}
+
+function updateColorStyle(filtered) {
+  const field = document.getElementById("color-select").value;
+  const legend = document.getElementById("legend");
+
+  if (field === "none") {
+    map.setPaintProperty("unclustered-point", "circle-color", "#bf5700");
+    map.setPaintProperty("clusters", "circle-color", "#bf5700");
+    legend.innerHTML = "";
+    return;
+  }
+
+  if (field === "yearBuilt") {
+    const buckets = numericBuckets(filtered.map((p) => p.yearBuilt));
+    const expr = ["step", ["get", "yearBuilt"], RAINBOW[0]];
+    buckets.forEach((b, i) => {
+      if (i === 0) return;
+      expr.push(b.from, RAINBOW[i % RAINBOW.length]);
+    });
+    map.setPaintProperty("unclustered-point", "circle-color", expr);
+    legend.innerHTML = buckets
+      .map((b, i) => `<div class="legend-row"><span class="legend-swatch" style="background:${RAINBOW[i % RAINBOW.length]}"></span>${b.label}</div>`)
+      .join("");
+    return;
+  }
+
+  const key = field === "owner" ? "ownerName" : field;
+  const { top, hasOther } = categoricalBuckets(filtered.map((p) => p[key]));
+  const expr = ["match", ["get", key]];
+  top.forEach((v, i) => expr.push(v, RAINBOW[i % RAINBOW.length]));
+  expr.push(OTHER_COLOR);
+  map.setPaintProperty("unclustered-point", "circle-color", expr);
+  legend.innerHTML =
+    top.map((v, i) => `<div class="legend-row"><span class="legend-swatch" style="background:${RAINBOW[i % RAINBOW.length]}"></span>${escapeHTML(v)}</div>`).join("") +
+    (hasOther ? `<div class="legend-row"><span class="legend-swatch" style="background:${OTHER_COLOR}"></span>Other</div>` : "");
+}
+
+function updateStats(filtered) {
+  document.getElementById("stat-count").textContent = filtered.length.toLocaleString();
+  const totalUnits = filtered.reduce((sum, p) => sum + (p.units || 0), 0);
+  document.getElementById("stat-units").textContent = totalUnits.toLocaleString();
+
+  const yearsKnown = filtered.filter((p) => p.yearBuilt);
+  const avgYear = yearsKnown.length
+    ? Math.round(yearsKnown.reduce((s, p) => s + p.yearBuilt, 0) / yearsKnown.length)
+    : "—";
+  document.getElementById("stat-year").textContent = avgYear;
+
+  const ownerUnits = {};
+  filtered.forEach((p) => {
+    if (!p.ownerName) return;
+    ownerUnits[p.ownerName] = (ownerUnits[p.ownerName] || 0) + (p.units || 0);
+  });
+  const topOwners = Object.entries(ownerUnits).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  document.getElementById("stat-owners").innerHTML = topOwners
+    .map(([name, units]) => `<div class="rank-row"><span>${escapeHTML(name)}</span><span class="n">${units.toLocaleString()}</span></div>`)
+    .join("");
+}
+
+function updateExcludeList(allVisible) {
+  const uniqueById = new Map();
+  allVisible.forEach((p) => uniqueById.set(p.id, p));
+  const list = [...uniqueById.values()].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  const el = document.getElementById("exclude-list");
+  el.innerHTML = list
+    .map(
+      (p) => `
+    <label>
+      <input type="checkbox" data-id="${p.id}" ${excludedIds.has(p.id) ? "" : "checked"} />
+      ${escapeHTML(p.name || "Unnamed")}
+    </label>`
+    )
+    .join("");
+
+  el.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (cb.checked) excludedIds.delete(cb.dataset.id);
+      else excludedIds.add(cb.dataset.id);
+      applyAll();
+    });
+  });
+}
+
+/* =========================================================
+   PAGE SWITCHER
+   ========================================================= */
+document.getElementById("page-switcher").addEventListener("change", (e) => {
+  const page = e.target.value;
+  document.getElementById("filters-properties").style.display = page === "properties" ? "block" : "none";
+  document.getElementById("filters-development").style.display = page === "development" ? "block" : "none";
+  document.getElementById("filters-sales").style.display = page === "sales" ? "block" : "none";
 });
-
-const sidebar = document.getElementById("sidebar");
-const backdrop = document.getElementById("sidebar-backdrop");
-
-function openSidebar() {
-  sidebar.classList.add("open");
-  backdrop.classList.add("open");
-}
-function closeSidebar() {
-  sidebar.classList.remove("open");
-  backdrop.classList.remove("open");
-}
-
-document.getElementById("mobile-filter-toggle").addEventListener("click", openSidebar);
-document.getElementById("sidebar-close").addEventListener("click", closeSidebar);
-backdrop.addEventListener("click", closeSidebar);
 </script>
 
 </body>
