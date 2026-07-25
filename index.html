@@ -138,12 +138,23 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 10px;
+    padding: 8px 10px;
     font-size: 13px;
     cursor: pointer;
   }
   .ms-option:hover { background: var(--gold-soft); }
-  .ms-option input { width: auto; accent-color: var(--navy); }
+  .ms-option input[type="checkbox"], .ms-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+  .ms-option.selected {
+    background: var(--navy);
+    color: #fff;
+  }
+  .ms-option.selected:hover { background: var(--navy); }
   .ms-footer {
     border-top: 1px solid var(--line);
     padding: 7px 10px;
@@ -385,7 +396,7 @@ function buildMultiSelect(containerEl, { placeholder, getValues, getSelectedInit
     list.innerHTML = values
       .map(
         (v) => `
-      <label class="ms-option">
+      <label class="ms-option ${selected.has(v) ? "selected" : ""}">
         <input type="checkbox" value="${escapeAttr(v)}" ${selected.has(v) ? "checked" : ""} />
         <span>${escapeHTML(v)}</span>
       </label>`
@@ -465,7 +476,7 @@ function buildSingleSelect(containerEl, { options, initial, onChange }) {
     list.innerHTML = options
       .map(
         (o) => `
-      <label class="ms-option">
+      <label class="ms-option ${o.value === current ? "selected" : ""}">
         <input type="radio" name="${containerEl.id}-radio" value="${escapeAttr(o.value)}" ${
           o.value === current ? "checked" : ""
         } />
@@ -522,6 +533,7 @@ const BASEMAPS = {
   grey: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
   aerial: {
     version: 8,
+    glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
     sources: {
       "esri-imagery": {
         type: "raster",
@@ -702,7 +714,7 @@ function setupBasemapToggle() {
     initial: "map",
     onChange: (key) => {
       map.setStyle(BASEMAPS[key]);
-      map.once("style.load", () => {
+      map.once("idle", () => {
         addPropertyLayers();
         applyAll();
       });
