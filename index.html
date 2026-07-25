@@ -70,13 +70,15 @@
 
   #reset-btn {
     align-self: flex-start;
-    font-size: 12.5px;
-    color: var(--gold);
+    font-size: 10.5px;
+    color: var(--navy);
     background: none;
     border: none;
     cursor: pointer;
     padding: 0;
-    font-weight: 700;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
   #reset-btn:hover { text-decoration: underline; }
 
@@ -264,24 +266,23 @@
         <div id="ms-city" class="ms-slot" data-field="city" data-placeholder="City"></div>
 
         <div class="range-row">
-          <input type="number" id="year-min" placeholder="Year built min" />
+          <input type="number" id="year-min" placeholder="Year Built" />
           <span>to</span>
-          <input type="number" id="year-max" placeholder="Year built max" />
+          <input type="number" id="year-max" placeholder="Year Built" />
         </div>
 
         <div class="range-row">
-          <input type="number" id="units-min" placeholder="Units min" />
+          <input type="number" id="units-min" placeholder="Units" />
           <span>to</span>
-          <input type="number" id="units-max" placeholder="Units max" />
+          <input type="number" id="units-max" placeholder="Units" />
         </div>
 
         <div id="ms-owner" class="ms-slot" data-field="ownerName" data-placeholder="Owner"></div>
       </div>
 
-      <div class="filter-section-title">Exclude properties</div>
       <div id="ms-exclude" class="ms-slot"></div>
 
-      <button id="reset-btn">Clear filters</button>
+      <button id="reset-btn">Clear Filters</button>
     </div>
 
     <div id="filters-development" style="display:none;">
@@ -325,6 +326,7 @@
 let allProperties = [];
 let companyById = {};
 let excludedIds = new Set(); // session-only manual exclusions; checked = excluded
+const DEFAULT_EXCLUDED_TYPE = "Condos / Coops";
 
 /* =========================================================
    LOAD
@@ -413,6 +415,10 @@ function buildMultiSelect(containerEl, { placeholder, getValues, getSelectedInit
 
   return {
     getSelected: () => selected,
+    setSelected: (s) => {
+      selected = s;
+      render();
+    },
     reset: () => {
       selected = new Set();
       render();
@@ -527,13 +533,15 @@ function initMap() {
 
     map.on("click", "unclustered-point", (e) => {
       const p = e.features[0].properties;
+      const isMultifamily = p.type === "Multifamily";
+
       const rows = [
         ["Address", p.address],
         ["City", p.city],
         ["Submarket", p.submarket],
         ["Owner", p.ownerName],
         ["Year built", p.yearBuilt],
-        ["Units", p.units]
+        isMultifamily ? ["Units", p.units] : ["Square feet", p.avgUnitSF]
       ]
         .map(
           ([k, v]) => `<div class="popup-row"><span class="k">${escapeHTML(k)}</span><span class="v">${escapeHTML(
@@ -575,7 +583,8 @@ function toGeoJSON(props) {
       geometry: { type: "Point", coordinates: [p.lng, p.lat] },
       properties: {
         id: p.id, name: p.name, address: p.address, city: p.city, submarket: p.submarket,
-        ownerName: p.ownerName, yearBuilt: p.yearBuilt, units: p.units, yardiLink: p.yardiLink
+        ownerName: p.ownerName, yearBuilt: p.yearBuilt, units: p.units, yardiLink: p.yardiLink,
+        type: p.type, avgUnitSF: p.avgUnitSF
       }
     }))
   };
@@ -608,26 +617,24 @@ function setupFilterUI() {
 
   msExclude = buildMultiSelect(document.getElementById("ms-exclude"), {
     placeholder: "Exclude properties",
-    getValues: () => currentInViewNames(),
-    getSelectedInitial: () => new Set(),
+    getValues: excludeListNames,
+    getSelectedInitial: defaultExcludedNames,
     onChange: (selectedNames) => {
-      const nameToIds = nameToIdMap(currentInViewProperties());
-      excludedIds = new Set();
-      selectedNames.forEach((name) => {
-        (nameToIds[name] || []).forEach((id) => excludedIds.add(id));
-      });
+      excludedIds = idsForNames(selectedNames);
       applyAll();
     }
   });
+  excludedIds = idsForNames(msExclude.getSelected());
 
   ["year-min", "year-max", "units-min", "units-max"].forEach((id) =>
     document.getElementById(id).addEventListener("input", applyAll)
   );
 
   document.getElementById("reset-btn").addEventListener("click", () => {
-    [msType, msSubmarket, msCity, msOwner, msExclude].forEach((ms) => ms.reset());
+    [msType, msSubmarket, msCity, msOwner].forEach((ms) => ms.reset());
     ["year-min", "year-max", "units-min", "units-max"].forEach((id) => (document.getElementById(id).value = ""));
-    excludedIds = new Set();
+    msExclude.setSelected(defaultExcludedNames());
+    excludedIds = idsForNames(msExclude.getSelected());
     applyAll();
   });
 }
@@ -669,9 +676,25 @@ function currentInViewProperties() {
   const state = getFilterState();
   return allProperties.filter((p) => matchesFacetFilters(p, state));
 }
-function currentInViewNames() {
-  return [...new Set(currentInViewProperties().map((p) => p.name).filter(Boolean))].sort();
+
+function excludeListNames() {
+  const props = currentInViewProperties().filter((p) => p.name);
+  const condos = [...new Set(props.filter((p) => p.type === DEFAULT_EXCLUDED_TYPE).map((p) => p.name))].sort();
+  const rest = [...new Set(props.filter((p) => p.type !== DEFAULT_EXCLUDED_TYPE).map((p) => p.name))].sort();
+  return [...condos, ...rest];
 }
+
+function defaultExcludedNames() {
+  return new Set(allProperties.filter((p) => p.type === DEFAULT_EXCLUDED_TYPE && p.name).map((p) => p.name));
+}
+
+function idsForNames(names) {
+  const map = nameToIdMap(allProperties);
+  const ids = new Set();
+  names.forEach((name) => (map[name] || []).forEach((id) => ids.add(id)));
+  return ids;
+}
+
 function nameToIdMap(props) {
   const map = {};
   props.forEach((p) => {
