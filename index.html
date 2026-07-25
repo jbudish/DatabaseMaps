@@ -94,21 +94,6 @@
   .range-row { display: flex; gap: 6px; align-items: center; }
   .range-row span { color: var(--ink-soft); font-size: 12px; }
 
-  .basemap-select {
-    width: 100%;
-    font-family: 'Inter', sans-serif;
-    font-size: 13.5px;
-    font-weight: 700;
-    padding: 8px 10px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    background: #fff;
-    color: var(--navy);
-    cursor: pointer;
-    outline: none;
-  }
-  .basemap-select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
-
   /* ---------- MULTI-SELECT WITH SEARCH (shared by filters + exclude list) ---------- */
   .ms { position: relative; }
   .ms-button {
@@ -213,6 +198,12 @@
     border-bottom: 1px solid var(--line);
   }
   .rank-row:last-child { border-bottom: none; }
+  .rank-row span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
   .rank-row .n { color: var(--navy); font-weight: 500; flex-shrink: 0; }
 
   #loading {
@@ -298,11 +289,7 @@
         <div id="ms-exclude" class="ms-slot"></div>
       </div>
 
-      <select id="basemap-select" class="basemap-select">
-        <option value="map">Map</option>
-        <option value="aerial">Aerial</option>
-        <option value="grey">Grey</option>
-      </select>
+      <div id="basemap-toggle" class="ms-slot"></div>
 
       <button id="reset-btn">Reset</button>
     </div>
@@ -454,6 +441,63 @@ function buildMultiSelect(containerEl, { placeholder, getValues, getSelectedInit
   };
 }
 
+// Single-choice variant of the dropdown, reusing the exact same classes as
+// buildMultiSelect so it's visually identical to the other filters (no search box,
+// no "Clear" footer, one option always active).
+function buildSingleSelect(containerEl, { options, initial, onChange }) {
+  containerEl.classList.add("ms");
+  containerEl.innerHTML = `
+    <button type="button" class="ms-button has-value"></button>
+    <div class="ms-panel">
+      <div class="ms-list"></div>
+    </div>
+  `;
+
+  const btn = containerEl.querySelector(".ms-button");
+  const list = containerEl.querySelector(".ms-list");
+
+  let current = initial;
+
+  function render() {
+    const chosen = options.find((o) => o.value === current);
+    btn.textContent = chosen ? chosen.label : "";
+
+    list.innerHTML = options
+      .map(
+        (o) => `
+      <label class="ms-option">
+        <input type="radio" name="${containerEl.id}-radio" value="${escapeAttr(o.value)}" ${
+          o.value === current ? "checked" : ""
+        } />
+        <span>${escapeHTML(o.label)}</span>
+      </label>`
+      )
+      .join("");
+
+    list.querySelectorAll("input[type=radio]").forEach((r) => {
+      r.addEventListener("change", () => {
+        current = r.value;
+        render();
+        containerEl.classList.remove("open");
+        onChange(current);
+      });
+    });
+  }
+
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".ms.open").forEach((el) => {
+      if (el !== containerEl) el.classList.remove("open");
+    });
+    containerEl.classList.toggle("open");
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!containerEl.contains(e.target)) containerEl.classList.remove("open");
+  });
+
+  render();
+}
+
 function escapeHTML(str) {
   const div = document.createElement("div");
   div.textContent = str;
@@ -521,7 +565,7 @@ function initMap() {
   map.addControl(new maplibregl.NavigationControl(), "top-right");
   map.addControl(
     new maplibregl.GeolocateControl({
-      positionOptions: { enableHighAccuracy: true },
+      positionOptions: { enableHighAccuracy: true, maximumAge: 0 },
       trackUserLocation: true,
       showUserHeading: true
     }),
@@ -592,7 +636,11 @@ function initMap() {
 
 // Adds the properties source + layers. Called on initial load, and again
 // after switching basemaps, since map.setStyle() clears custom sources/layers.
+// Guarded against double-firing of style.load, which previously left the map
+// permanently missing its property dots after a basemap switch.
 function addPropertyLayers() {
+  if (map.getSource("properties")) return;
+
   map.addSource("properties", {
     type: "geojson",
     data: toGeoJSON(allProperties),
@@ -644,13 +692,20 @@ function addPropertyLayers() {
 }
 
 function setupBasemapToggle() {
-  document.getElementById("basemap-select").addEventListener("change", (e) => {
-    const key = e.target.value;
-    map.setStyle(BASEMAPS[key]);
-    map.once("style.load", () => {
-      addPropertyLayers();
-      applyAll();
-    });
+  buildSingleSelect(document.getElementById("basemap-toggle"), {
+    options: [
+      { value: "map", label: "Map" },
+      { value: "aerial", label: "Aerial" },
+      { value: "grey", label: "Grey" }
+    ],
+    initial: "map",
+    onChange: (key) => {
+      map.setStyle(BASEMAPS[key]);
+      map.once("style.load", () => {
+        addPropertyLayers();
+        applyAll();
+      });
+    }
   });
 }
 
