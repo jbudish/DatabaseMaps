@@ -6,17 +6,26 @@
 <title>Property Map</title>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #1c2530;
-    --ink-soft: #55606c;
-    --line: #dde2e7;
-    --panel: #fbfbfa;
-    --accent: #bf5700;
-    --accent-soft: #fbe9dc;
+    --navy: #1a3a5c;
+    --navy-soft: #3d5a78;
+    --ink: #2b3542;
+    --ink-soft: #6b7688;
+    --line: #dfe3e8;
+    --panel: #f7f8fa;
+    --gold: #c9962e;
+    --gold-soft: #f6ecd8;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; font-family: -apple-system, "Segoe UI", Inter, Arial, sans-serif; color: var(--ink); }
+  html, body {
+    margin: 0; height: 100%;
+    font-family: 'Inter', -apple-system, "Segoe UI", Arial, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
   #app { display: flex; height: 100%; }
 
   #sidebar {
@@ -24,10 +33,10 @@
     flex-shrink: 0;
     background: var(--panel);
     border-right: 1px solid var(--line);
-    padding: 16px;
+    padding: 18px 16px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
     overflow-y: auto;
   }
 
@@ -38,38 +47,41 @@
   }
 
   #page-switcher {
-    font-family: inherit;
+    font-family: 'Manrope', sans-serif;
     font-size: 15px;
-    font-weight: 700;
+    font-weight: 800;
+    color: var(--navy);
     padding: 10px 12px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: #fff;
+    letter-spacing: -0.01em;
   }
 
   .filter-section-title {
+    font-family: 'Manrope', sans-serif;
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--accent);
-    margin: 4px 0 0;
+    letter-spacing: 0.07em;
+    color: var(--navy);
+    margin: 6px 0 0;
   }
 
   #reset-btn {
     align-self: flex-start;
     font-size: 12.5px;
-    color: var(--accent);
+    color: var(--gold);
     background: none;
     border: none;
     cursor: pointer;
     padding: 0;
-    font-weight: 600;
+    font-weight: 700;
   }
   #reset-btn:hover { text-decoration: underline; }
 
   input[type="text"], input[type="number"] {
-    font-family: inherit;
+    font-family: 'Inter', sans-serif;
     font-size: 13.5px;
     padding: 8px 10px;
     border: 1px solid var(--line);
@@ -79,16 +91,17 @@
     outline: none;
     width: 100%;
   }
-  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
 
   .range-row { display: flex; gap: 6px; align-items: center; }
   .range-row span { color: var(--ink-soft); font-size: 12px; }
 
-  /* ---------- MULTI-SELECT WITH SEARCH ---------- */
+  /* ---------- MULTI-SELECT WITH SEARCH (shared by filters + exclude list) ---------- */
   .ms { position: relative; }
   .ms-button {
     width: 100%;
     text-align: left;
+    font-family: 'Inter', sans-serif;
     font-size: 13.5px;
     padding: 8px 10px;
     border: 1px solid var(--line);
@@ -97,7 +110,7 @@
     color: var(--ink-soft);
     cursor: pointer;
   }
-  .ms-button.has-value { color: var(--ink); font-weight: 600; }
+  .ms-button.has-value { color: var(--navy); font-weight: 700; border-color: var(--gold); }
   .ms-panel {
     display: none;
     position: absolute;
@@ -109,7 +122,7 @@
     background: #fff;
     border: 1px solid var(--line);
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    box-shadow: 0 10px 28px rgba(26,58,92,0.14);
     max-height: 280px;
     flex-direction: column;
   }
@@ -118,8 +131,9 @@
     border: none;
     border-bottom: 1px solid var(--line);
     border-radius: 8px 8px 0 0;
-    padding: 8px 10px;
+    padding: 9px 10px;
     font-size: 13px;
+    font-family: 'Inter', sans-serif;
   }
   .ms-list { overflow-y: auto; padding: 4px 0; }
   .ms-option {
@@ -130,27 +144,16 @@
     font-size: 13px;
     cursor: pointer;
   }
-  .ms-option:hover { background: var(--accent-soft); }
-  .ms-option input { width: auto; }
+  .ms-option:hover { background: var(--gold-soft); }
+  .ms-option input { width: auto; accent-color: var(--navy); }
   .ms-footer {
     border-top: 1px solid var(--line);
-    padding: 6px 10px;
+    padding: 7px 10px;
     font-size: 11.5px;
-    color: var(--accent);
+    color: var(--gold);
     cursor: pointer;
-    font-weight: 600;
+    font-weight: 700;
   }
-
-  /* ---------- EXCLUDE CHECKLIST ---------- */
-  #exclude-list {
-    max-height: 160px;
-    overflow-y: auto;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    padding: 6px 8px;
-    font-size: 12px;
-  }
-  #exclude-list label { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
 
   /* ---------- MAP + STATS ---------- */
   #map-wrap { flex: 1; position: relative; display: flex; }
@@ -160,26 +163,37 @@
     flex-shrink: 0;
     background: #fff;
     border-left: 1px solid var(--line);
-    padding: 20px 16px;
+    padding: 22px 18px;
     overflow-y: auto;
   }
-  .stat-block { margin-bottom: 18px; }
+  .stat-block { margin-bottom: 20px; }
   .stat-label {
+    font-family: 'Manrope', sans-serif;
     font-size: 10.5px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     color: var(--ink-soft);
   }
-  .stat-value { font-size: 24px; font-weight: 700; margin-top: 2px; }
-  .rank-list { margin-top: 4px; }
+  .stat-value {
+    font-family: 'Manrope', sans-serif;
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--navy);
+    margin-top: 3px;
+    letter-spacing: -0.01em;
+  }
+  .rank-list { margin-top: 6px; }
   .rank-row {
     display: flex;
     justify-content: space-between;
     font-size: 13.5px;
-    font-weight: 650;
-    padding: 3px 0;
+    font-weight: 600;
+    color: var(--navy);
+    padding: 4px 0;
+    border-bottom: 1px solid var(--line);
   }
+  .rank-row:last-child { border-bottom: none; }
   .rank-row .n { color: var(--ink-soft); font-weight: 500; }
 
   #loading {
@@ -188,17 +202,43 @@
     font-size: 13px; color: var(--ink-soft); z-index: 5;
   }
 
+  /* ---------- POPUP ---------- */
   .maplibregl-popup-content {
-    font-family: inherit; font-size: 13px; padding: 14px 16px;
-    border-radius: 8px; box-shadow: 0 6px 24px rgba(28,37,48,0.15); min-width: 210px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    padding: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgba(26,58,92,0.22);
+    min-width: 220px;
   }
-  .popup-name { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
-  .popup-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
-  .popup-row .k { color: var(--ink-soft); }
-  .popup-row .v { font-weight: 600; text-align: right; }
+  .popup-accent { height: 4px; background: var(--gold); }
+  .popup-body { padding: 14px 16px 12px; }
+  .popup-name {
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 15px;
+    color: var(--navy);
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+  .popup-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .popup-row:last-of-type { border-bottom: none; }
+  .popup-row .k { color: var(--ink-soft); font-size: 12px; }
+  .popup-row .v { font-weight: 600; text-align: right; color: var(--ink); font-size: 12.5px; }
   .popup-link {
-    display: inline-block; margin-top: 8px; font-size: 12.5px; font-weight: 650;
-    color: var(--accent); text-decoration: none;
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--gold);
+    text-decoration: none;
   }
   .popup-link:hover { text-decoration: underline; }
 
@@ -238,10 +278,10 @@
         <div id="ms-owner" class="ms-slot" data-field="ownerName" data-placeholder="Owner"></div>
       </div>
 
-      <button id="reset-btn">Clear filters</button>
-
       <div class="filter-section-title">Exclude properties</div>
-      <div id="exclude-list"></div>
+      <div id="ms-exclude" class="ms-slot"></div>
+
+      <button id="reset-btn">Clear filters</button>
     </div>
 
     <div id="filters-development" style="display:none;">
@@ -284,7 +324,7 @@
    ========================================================= */
 let allProperties = [];
 let companyById = {};
-let excludedIds = new Set(); // session-only manual exclusions
+let excludedIds = new Set(); // session-only manual exclusions; checked = excluded
 
 /* =========================================================
    LOAD
@@ -305,9 +345,9 @@ Promise.all([
 });
 
 /* =========================================================
-   MULTI-SELECT WITH SEARCH (reusable)
+   MULTI-SELECT WITH SEARCH (reusable — used for filters + exclude list)
    ========================================================= */
-function buildMultiSelect(containerEl, { placeholder, getValues, onChange }) {
+function buildMultiSelect(containerEl, { placeholder, getValues, getSelectedInitial, onChange }) {
   containerEl.classList.add("ms");
   containerEl.innerHTML = `
     <button type="button" class="ms-button">${placeholder}</button>
@@ -323,7 +363,7 @@ function buildMultiSelect(containerEl, { placeholder, getValues, onChange }) {
   const list = containerEl.querySelector(".ms-list");
   const footer = containerEl.querySelector(".ms-footer");
 
-  let selected = new Set();
+  let selected = getSelectedInitial ? getSelectedInitial() : new Set();
 
   function render() {
     const term = search.value.trim().toLowerCase();
@@ -397,9 +437,8 @@ function normalizeUrl(url) {
 /* =========================================================
    MAP
    ========================================================= */
-let map, msType, msSubmarket, msCity, msOwner;
+let map, msType, msSubmarket, msCity, msOwner, msExclude;
 
-// Fixed size buckets: <25, <50, <100, <200, 200+ — max only 2x min radius
 const UNIT_SIZE_EXPR = [
   "step", ["get", "units"],
   5,
@@ -409,7 +448,6 @@ const UNIT_SIZE_EXPR = [
   200, 10
 ];
 
-// Fixed 6-bucket maroon -> navy gradient by year built
 const YEAR_COLOR_EXPR = [
   "step", ["get", "yearBuilt"],
   "#800000",
@@ -508,7 +546,14 @@ function initMap() {
         : "";
       new maplibregl.Popup({ offset: 10 })
         .setLngLat(e.features[0].geometry.coordinates.slice())
-        .setHTML(`<div class="popup-name">${escapeHTML(p.name || "Unnamed property")}</div>${rows}${link}`)
+        .setHTML(`
+          <div class="popup-accent"></div>
+          <div class="popup-body">
+            <div class="popup-name">${escapeHTML(p.name || "Unnamed property")}</div>
+            ${rows}
+            ${link}
+          </div>
+        `)
         .addTo(map);
     });
 
@@ -561,13 +606,28 @@ function setupFilterUI() {
     onChange: applyAll
   });
 
+  msExclude = buildMultiSelect(document.getElementById("ms-exclude"), {
+    placeholder: "Exclude properties",
+    getValues: () => currentInViewNames(),
+    getSelectedInitial: () => new Set(),
+    onChange: (selectedNames) => {
+      const nameToIds = nameToIdMap(currentInViewProperties());
+      excludedIds = new Set();
+      selectedNames.forEach((name) => {
+        (nameToIds[name] || []).forEach((id) => excludedIds.add(id));
+      });
+      applyAll();
+    }
+  });
+
   ["year-min", "year-max", "units-min", "units-max"].forEach((id) =>
     document.getElementById(id).addEventListener("input", applyAll)
   );
 
   document.getElementById("reset-btn").addEventListener("click", () => {
-    [msType, msSubmarket, msCity, msOwner].forEach((ms) => ms.reset());
+    [msType, msSubmarket, msCity, msOwner, msExclude].forEach((ms) => ms.reset());
     ["year-min", "year-max", "units-min", "units-max"].forEach((id) => (document.getElementById(id).value = ""));
+    excludedIds = new Set();
     applyAll();
   });
 }
@@ -593,8 +653,6 @@ function numOrNull(id) {
   return v ? parseInt(v, 10) : null;
 }
 
-// Facet/range filters only — does NOT apply manual exclusions.
-// Used to determine what's "currently in view" for both the map and the exclude checklist.
 function matchesFacetFilters(p, f) {
   if (f.type.size && !f.type.has(p.type)) return false;
   if (f.submarket.size && !f.submarket.has(p.submarket)) return false;
@@ -607,18 +665,33 @@ function matchesFacetFilters(p, f) {
   return true;
 }
 
+function currentInViewProperties() {
+  const state = getFilterState();
+  return allProperties.filter((p) => matchesFacetFilters(p, state));
+}
+function currentInViewNames() {
+  return [...new Set(currentInViewProperties().map((p) => p.name).filter(Boolean))].sort();
+}
+function nameToIdMap(props) {
+  const map = {};
+  props.forEach((p) => {
+    if (!p.name) return;
+    (map[p.name] = map[p.name] || []).push(p.id);
+  });
+  return map;
+}
+
 /* =========================================================
    APPLY: filter map + stats + exclude list
    ========================================================= */
 function applyAll() {
   const state = getFilterState();
-
   const inView = allProperties.filter((p) => matchesFacetFilters(p, state));
   const shown = inView.filter((p) => !excludedIds.has(p.id));
 
   map.getSource("properties").setData(toGeoJSON(shown));
   updateStats(shown);
-  updateExcludeList(inView);
+  if (msExclude) msExclude.refresh();
 }
 
 function updateStats(filtered) {
@@ -641,29 +714,6 @@ function updateStats(filtered) {
   document.getElementById("stat-owners").innerHTML = topOwners
     .map(([name, units]) => `<div class="rank-row"><span>${escapeHTML(name)}</span><span class="n">${units.toLocaleString()}</span></div>`)
     .join("");
-}
-
-function updateExcludeList(inViewProperties) {
-  const list = [...inViewProperties].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-
-  const el = document.getElementById("exclude-list");
-  el.innerHTML = list
-    .map(
-      (p) => `
-    <label>
-      <input type="checkbox" data-id="${p.id}" ${excludedIds.has(p.id) ? "" : "checked"} />
-      ${escapeHTML(p.name || "Unnamed")}
-    </label>`
-    )
-    .join("");
-
-  el.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-    cb.addEventListener("change", () => {
-      if (cb.checked) excludedIds.delete(cb.dataset.id);
-      else excludedIds.add(cb.dataset.id);
-      applyAll();
-    });
-  });
 }
 
 /* =========================================================
