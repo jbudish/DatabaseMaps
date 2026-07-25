@@ -744,7 +744,7 @@ function toGeoJSON(props) {
       geometry: { type: "Point", coordinates: [p.lng, p.lat] },
       properties: {
         id: p.id, name: p.name, address: p.address, city: p.city, submarket: p.submarket,
-        ownerName: p.ownerName, yearBuilt: p.yearBuilt, units: p.units ?? 0, yardiLink: p.yardiLink,
+        ownerName: p.ownerName, yearBuilt: p.yearBuilt ?? 0, units: p.units ?? 0, yardiLink: p.yardiLink,
         type: p.type, squareFeet: p.squareFeet
       }
     }))
