@@ -666,7 +666,7 @@ function addPropertyLayers() {
     clusterMaxZoom: 11,
     clusterRadius: 25,
     clusterProperties: {
-      sum_units: ["+", ["get", "units"]]
+      sum_units: ["+", ["coalesce", ["get", "units"], 0]]
     }
   });
 
