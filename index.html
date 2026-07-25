@@ -40,6 +40,12 @@
     overflow-y: auto;
   }
 
+  #filters-properties {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
   .filter-stack {
     display: flex;
     flex-direction: column;
@@ -56,16 +62,6 @@
     border-radius: 8px;
     background: #fff;
     letter-spacing: -0.01em;
-  }
-
-  .filter-section-title {
-    font-family: 'Manrope', sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: var(--navy);
-    margin: 6px 0 0;
   }
 
   #reset-btn {
@@ -161,7 +157,7 @@
   #map-wrap { flex: 1; position: relative; display: flex; }
   #map { flex: 1; position: relative; }
   #stats {
-    width: 230px;
+    width: 253px;
     flex-shrink: 0;
     background: #fff;
     border-left: 1px solid var(--line);
@@ -185,10 +181,21 @@
     margin-top: 3px;
     letter-spacing: -0.01em;
   }
-  .rank-list { margin-top: 6px; }
+  .rank-header {
+    display: flex;
+    justify-content: flex-end;
+    font-size: 9.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin-top: 6px;
+  }
+  .rank-list { margin-top: 4px; }
   .rank-row {
     display: flex;
     justify-content: space-between;
+    gap: 10px;
     font-size: 13.5px;
     font-weight: 600;
     color: var(--navy);
@@ -196,7 +203,7 @@
     border-bottom: 1px solid var(--line);
   }
   .rank-row:last-child { border-bottom: none; }
-  .rank-row .n { color: var(--ink-soft); font-weight: 500; }
+  .rank-row .n { color: var(--ink-soft); font-weight: 500; flex-shrink: 0; }
 
   #loading {
     position: absolute; inset: 0; background: #fff;
@@ -313,6 +320,7 @@
       </div>
       <div class="stat-block">
         <div class="stat-label">Largest owners</div>
+        <div class="rank-header">Units Filtered</div>
         <div class="rank-list" id="stat-owners"></div>
       </div>
     </div>
@@ -326,7 +334,7 @@
 let allProperties = [];
 let companyById = {};
 let excludedIds = new Set(); // session-only manual exclusions; checked = excluded
-const DEFAULT_EXCLUDED_TYPE = "Condos / Coops";
+const DEFAULT_EXCLUDED_OWNER = "Condos / Coops";
 
 /* =========================================================
    LOAD
@@ -478,8 +486,8 @@ function initMap() {
       type: "geojson",
       data: toGeoJSON(allProperties),
       cluster: true,
-      clusterMaxZoom: 14,
-      clusterRadius: 45,
+      clusterMaxZoom: 11,
+      clusterRadius: 25,
       clusterProperties: {
         sum_units: ["+", ["get", "units"]]
       }
@@ -494,7 +502,7 @@ function initMap() {
         "circle-color": "#4d0033",
         "circle-radius": [
           "interpolate", ["linear"], ["get", "sum_units"],
-          0, 14, 200, 20, 1000, 28, 5000, 36
+          0, 12, 200, 17, 1000, 23, 5000, 30
         ],
         "circle-stroke-width": 2,
         "circle-stroke-color": "#ffffff"
@@ -597,6 +605,7 @@ function setupFilterUI() {
   msType = buildMultiSelect(document.getElementById("ms-type"), {
     placeholder: "Property type",
     getValues: () => currentFacetValues("type"),
+    getSelectedInitial: () => new Set(["Multifamily"]),
     onChange: applyAll
   });
   msSubmarket = buildMultiSelect(document.getElementById("ms-submarket"), {
@@ -631,7 +640,8 @@ function setupFilterUI() {
   );
 
   document.getElementById("reset-btn").addEventListener("click", () => {
-    [msType, msSubmarket, msCity, msOwner].forEach((ms) => ms.reset());
+    msType.setSelected(new Set(["Multifamily"]));
+    [msSubmarket, msCity, msOwner].forEach((ms) => ms.reset());
     ["year-min", "year-max", "units-min", "units-max"].forEach((id) => (document.getElementById(id).value = ""));
     msExclude.setSelected(defaultExcludedNames());
     excludedIds = idsForNames(msExclude.getSelected());
@@ -677,15 +687,16 @@ function currentInViewProperties() {
   return allProperties.filter((p) => matchesFacetFilters(p, state));
 }
 
+// Condos / Coops (an Owner value) sorted to the top, everything else alphabetical below.
 function excludeListNames() {
   const props = currentInViewProperties().filter((p) => p.name);
-  const condos = [...new Set(props.filter((p) => p.type === DEFAULT_EXCLUDED_TYPE).map((p) => p.name))].sort();
-  const rest = [...new Set(props.filter((p) => p.type !== DEFAULT_EXCLUDED_TYPE).map((p) => p.name))].sort();
+  const condos = [...new Set(props.filter((p) => p.ownerName === DEFAULT_EXCLUDED_OWNER).map((p) => p.name))].sort();
+  const rest = [...new Set(props.filter((p) => p.ownerName !== DEFAULT_EXCLUDED_OWNER).map((p) => p.name))].sort();
   return [...condos, ...rest];
 }
 
 function defaultExcludedNames() {
-  return new Set(allProperties.filter((p) => p.type === DEFAULT_EXCLUDED_TYPE && p.name).map((p) => p.name));
+  return new Set(allProperties.filter((p) => p.ownerName === DEFAULT_EXCLUDED_OWNER && p.name).map((p) => p.name));
 }
 
 function idsForNames(names) {
