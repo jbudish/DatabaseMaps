@@ -94,6 +94,21 @@
   .range-row { display: flex; gap: 6px; align-items: center; }
   .range-row span { color: var(--ink-soft); font-size: 12px; }
 
+  .basemap-select {
+    width: 100%;
+    font-family: 'Inter', sans-serif;
+    font-size: 13.5px;
+    font-weight: 700;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+    color: var(--navy);
+    cursor: pointer;
+    outline: none;
+  }
+  .basemap-select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+
   /* ---------- MULTI-SELECT WITH SEARCH (shared by filters + exclude list) ---------- */
   .ms { position: relative; }
   .ms-button {
@@ -198,7 +213,7 @@
     border-bottom: 1px solid var(--line);
   }
   .rank-row:last-child { border-bottom: none; }
-  .rank-row .n { color: var(--ink-soft); font-weight: 500; flex-shrink: 0; }
+  .rank-row .n { color: var(--navy); font-weight: 500; flex-shrink: 0; }
 
   #loading {
     position: absolute; inset: 0; background: #fff;
@@ -283,7 +298,13 @@
         <div id="ms-exclude" class="ms-slot"></div>
       </div>
 
-      <button id="reset-btn">Clear Filters</button>
+      <select id="basemap-select" class="basemap-select">
+        <option value="map">Map</option>
+        <option value="aerial">Aerial</option>
+        <option value="grey">Grey</option>
+      </select>
+
+      <button id="reset-btn">Reset</button>
     </div>
 
     <div id="filters-development" style="display:none;">
@@ -452,13 +473,32 @@ function normalizeUrl(url) {
 let map, msType, msSubmarket, msCity, msOwner, msExclude;
 let mapBounds = null;
 
+const BASEMAPS = {
+  map: "https://tiles.openfreemap.org/styles/liberty",
+  grey: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+  aerial: {
+    version: 8,
+    sources: {
+      "esri-imagery": {
+        type: "raster",
+        tiles: [
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        ],
+        tileSize: 256,
+        attribution: "Imagery © Esri, Maxar, Earthstar Geographics"
+      }
+    },
+    layers: [{ id: "esri-imagery-layer", type: "raster", source: "esri-imagery" }]
+  }
+};
+
 const UNIT_SIZE_EXPR = [
   "step", ["get", "units"],
   5,
-  25, 6,
-  50, 7,
-  100, 8.5,
-  200, 10
+  25, 7.5,
+  50, 10,
+  100, 12.5,
+  200, 15
 ];
 
 const YEAR_COLOR_EXPR = [
@@ -474,61 +514,22 @@ const YEAR_COLOR_EXPR = [
 function initMap() {
   map = new maplibregl.Map({
     container: "map",
-    style: "https://tiles.openfreemap.org/styles/liberty",
+    style: BASEMAPS.map,
     center: [-93.2, 44.9],
     zoom: 8
   });
   map.addControl(new maplibregl.NavigationControl(), "top-right");
+  map.addControl(
+    new maplibregl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: true,
+      showUserHeading: true
+    }),
+    "top-right"
+  );
 
   map.on("load", () => {
-    map.addSource("properties", {
-      type: "geojson",
-      data: toGeoJSON(allProperties),
-      cluster: true,
-      clusterMaxZoom: 11,
-      clusterRadius: 25,
-      clusterProperties: {
-        sum_units: ["+", ["get", "units"]]
-      }
-    });
-
-    map.addLayer({
-      id: "clusters",
-      type: "circle",
-      source: "properties",
-      filter: ["has", "point_count"],
-      paint: {
-        "circle-color": "#4d0033",
-        "circle-radius": [
-          "interpolate", ["linear"], ["get", "sum_units"],
-          0, 12, 200, 17, 1000, 23, 5000, 30
-        ],
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "#ffffff"
-      }
-    });
-
-    map.addLayer({
-      id: "cluster-count",
-      type: "symbol",
-      source: "properties",
-      filter: ["has", "point_count"],
-      layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": ["Noto Sans Bold"], "text-size": 12 },
-      paint: { "text-color": "#ffffff" }
-    });
-
-    map.addLayer({
-      id: "unclustered-point",
-      type: "circle",
-      source: "properties",
-      filter: ["!", ["has", "point_count"]],
-      paint: {
-        "circle-color": YEAR_COLOR_EXPR,
-        "circle-radius": UNIT_SIZE_EXPR,
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "#ffffff"
-      }
-    });
+    addPropertyLayers();
 
     map.on("click", "clusters", (e) => {
       const f = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
@@ -578,12 +579,77 @@ function initMap() {
     });
 
     setupFilterUI();
+    setupBasemapToggle();
     mapBounds = map.getBounds();
     applyAll();
 
     map.on("moveend", () => {
       mapBounds = map.getBounds();
       if (msExclude) msExclude.refresh();
+    });
+  });
+}
+
+// Adds the properties source + layers. Called on initial load, and again
+// after switching basemaps, since map.setStyle() clears custom sources/layers.
+function addPropertyLayers() {
+  map.addSource("properties", {
+    type: "geojson",
+    data: toGeoJSON(allProperties),
+    cluster: true,
+    clusterMaxZoom: 11,
+    clusterRadius: 25,
+    clusterProperties: {
+      sum_units: ["+", ["get", "units"]]
+    }
+  });
+
+  map.addLayer({
+    id: "clusters",
+    type: "circle",
+    source: "properties",
+    filter: ["has", "point_count"],
+    paint: {
+      "circle-color": "#4d0033",
+      "circle-radius": [
+        "interpolate", ["linear"], ["get", "sum_units"],
+        0, 12, 200, 17, 1000, 23, 5000, 30
+      ],
+      "circle-stroke-width": 1,
+      "circle-stroke-color": "#ffffff"
+    }
+  });
+
+  map.addLayer({
+    id: "cluster-count",
+    type: "symbol",
+    source: "properties",
+    filter: ["has", "point_count"],
+    layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": ["Noto Sans Bold"], "text-size": 12 },
+    paint: { "text-color": "#ffffff" }
+  });
+
+  map.addLayer({
+    id: "unclustered-point",
+    type: "circle",
+    source: "properties",
+    filter: ["!", ["has", "point_count"]],
+    paint: {
+      "circle-color": YEAR_COLOR_EXPR,
+      "circle-radius": UNIT_SIZE_EXPR,
+      "circle-stroke-width": 1,
+      "circle-stroke-color": "#ffffff"
+    }
+  });
+}
+
+function setupBasemapToggle() {
+  document.getElementById("basemap-select").addEventListener("change", (e) => {
+    const key = e.target.value;
+    map.setStyle(BASEMAPS[key]);
+    map.once("style.load", () => {
+      addPropertyLayers();
+      applyAll();
     });
   });
 }
