@@ -450,6 +450,7 @@ function normalizeUrl(url) {
    MAP
    ========================================================= */
 let map, msType, msSubmarket, msCity, msOwner, msExclude;
+let mapBounds = null;
 
 const UNIT_SIZE_EXPR = [
   "step", ["get", "units"],
@@ -577,7 +578,13 @@ function initMap() {
     });
 
     setupFilterUI();
+    mapBounds = map.getBounds();
     applyAll();
+
+    map.on("moveend", () => {
+      mapBounds = map.getBounds();
+      if (msExclude) msExclude.refresh();
+    });
   });
 }
 
@@ -686,8 +693,13 @@ function currentInViewProperties() {
 }
 
 // Condos / Coops (an Owner value) sorted to the top, everything else alphabetical below.
+// Scoped to whatever's currently in the map's viewport, so the list stays a manageable size
+// as you pan/zoom rather than listing every matching property system-wide.
 function excludeListNames() {
-  const props = currentInViewProperties().filter((p) => p.name);
+  let props = currentInViewProperties().filter((p) => p.name);
+  if (mapBounds) {
+    props = props.filter((p) => mapBounds.contains([p.lng, p.lat]));
+  }
   const condos = [...new Set(props.filter((p) => p.ownerName === DEFAULT_EXCLUDED_OWNER).map((p) => p.name))].sort();
   const rest = [...new Set(props.filter((p) => p.ownerName !== DEFAULT_EXCLUDED_OWNER).map((p) => p.name))].sort();
   return [...condos, ...rest];
