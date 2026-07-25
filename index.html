@@ -277,6 +277,15 @@
     pointer-events: none;
   }
 
+  #dev-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 4px;
+  }
+  .legend-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink); }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
   .coming-soon {
     padding: 30px 10px; text-align: center; color: var(--ink-soft); font-size: 13.5px;
   }
@@ -284,7 +293,7 @@
 </head>
 <body>
 
-<div id="version-badge">v3</div>
+<div id="version-badge">v4</div>
 
 <div id="app">
   <div id="sidebar">
@@ -317,11 +326,32 @@
         <div id="basemap-toggle" class="ms-slot"></div>
       </div>
 
-      <button id="reset-btn">Reset</button>
+      <button id="reset-btn" class="page-reset-btn">Reset</button>
     </div>
 
     <div id="filters-development" style="display:none;">
-      <div class="coming-soon">Development page — coming in the next phase.</div>
+      <div class="filter-stack">
+        <div id="dev-ms-type" class="ms-slot" data-field="type" data-placeholder="Property type"></div>
+        <div id="dev-ms-submarket" class="ms-slot" data-field="submarket" data-placeholder="Submarket"></div>
+        <div id="dev-ms-city" class="ms-slot" data-field="city" data-placeholder="City"></div>
+
+        <div class="range-row">
+          <input type="number" id="dev-year-min" placeholder="Year Built" />
+          <span>to</span>
+          <input type="number" id="dev-year-max" placeholder="Year Built" />
+        </div>
+
+        <div class="range-row">
+          <input type="number" id="dev-units-min" placeholder="Units" />
+          <span>to</span>
+          <input type="number" id="dev-units-max" placeholder="Units" />
+        </div>
+
+        <div id="dev-ms-developer" class="ms-slot" data-field="developerName" data-placeholder="Developer"></div>
+        <div id="dev-ms-exclude" class="ms-slot"></div>
+      </div>
+
+      <button id="dev-reset-btn" class="page-reset-btn">Reset</button>
     </div>
 
     <div id="filters-sales" style="display:none;">
@@ -334,24 +364,57 @@
       <div id="loading">Loading properties…</div>
     </div>
     <div id="stats">
-      <div class="stat-block">
-        <div class="stat-label">Properties</div>
-        <div class="stat-value" id="stat-count">—</div>
-      </div>
-      <div class="stat-block">
-        <div class="stat-label">Units</div>
-        <div class="stat-value" id="stat-units">—</div>
-      </div>
-      <div class="stat-block">
-        <div class="stat-label">Avg year built</div>
-        <div class="stat-value" id="stat-year">—</div>
-      </div>
-      <div class="stat-block">
-        <div class="rank-header-row">
-          <div class="stat-label">Largest owners</div>
-          <div class="stat-label">Units Filtered</div>
+      <div id="stats-properties">
+        <div class="stat-block">
+          <div class="stat-label">Properties</div>
+          <div class="stat-value" id="stat-count">—</div>
         </div>
-        <div class="rank-list" id="stat-owners"></div>
+        <div class="stat-block">
+          <div class="stat-label">Units</div>
+          <div class="stat-value" id="stat-units">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Avg year built</div>
+          <div class="stat-value" id="stat-year">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="rank-header-row">
+            <div class="stat-label">Largest owners</div>
+            <div class="stat-label">Units Filtered</div>
+          </div>
+          <div class="rank-list" id="stat-owners"></div>
+        </div>
+      </div>
+
+      <div id="stats-development" style="display:none;">
+        <div class="stat-block">
+          <div class="stat-label">Properties</div>
+          <div class="stat-value" id="dev-stat-count">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Units</div>
+          <div class="stat-value" id="dev-stat-units">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Avg SF</div>
+          <div class="stat-value" id="dev-stat-sf">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Avg in-place rent</div>
+          <div class="stat-value" id="dev-stat-rent">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Avg rent PSF</div>
+          <div class="stat-value" id="dev-stat-rentpsf">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Avg occupancy</div>
+          <div class="stat-value" id="dev-stat-occupancy">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Rent PSF legend</div>
+          <div id="dev-legend"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -363,8 +426,14 @@
    ========================================================= */
 let allProperties = [];
 let companyById = {};
-let excludedIds = new Set(); // session-only manual exclusions; checked = excluded
+let excludedIds = new Set(); // Properties page: session-only manual exclusions; checked = excluded
+let excludedIdsDev = new Set(); // Development page: its own separate exclusion set
 const DEFAULT_EXCLUDED_OWNER = "Condos / Coops";
+
+let currentPage = "properties";
+let msDevType, msDevSubmarket, msDevCity, msDevDeveloper, msDevExclude;
+
+const RAINBOW7 = ["#c0392b", "#e08e4f", "#d4b106", "#1f8a4c", "#1c9e8e", "#1c5fa8", "#6b3fa0"];
 
 /* =========================================================
    LOAD
@@ -618,35 +687,58 @@ function initMap() {
 
     map.on("click", "unclustered-point", (e) => {
       const p = e.features[0].properties;
-      const isMultifamily = p.type === "Multifamily";
+      let bodyHTML;
 
-      const rows = [
-        ["Address", p.address],
-        ["City", p.city],
-        ["Submarket", p.submarket],
-        ["Owner", p.ownerName],
-        ["Year built", p.yearBuilt],
-        isMultifamily ? ["Units", p.units] : ["Square feet", p.squareFeet]
-      ]
-        .map(
-          ([k, v]) => `<div class="popup-row"><span class="k">${escapeHTML(k)}</span><span class="v">${escapeHTML(
-            String(v || "—")
-          )}</span></div>`
-        )
-        .join("");
-      const link = p.yardiLink
-        ? `<a class="popup-link" href="${escapeAttr(normalizeUrl(p.yardiLink))}" target="_blank" rel="noopener">View in Yardi →</a>`
-        : "";
+      if (currentPage === "development") {
+        const occDisplay = p.occupancy
+          ? `${((p.occupancy <= 1 ? p.occupancy * 100 : p.occupancy)).toFixed(0)}%`
+          : null;
+        const rows = [
+          ["City", p.city],
+          ["Developer", p.developerName],
+          ["Development equity", p.developmentEquity ? formatCurrencyShort(p.developmentEquity) : null],
+          ["Year built", p.yearBuilt],
+          ["Units", p.units],
+          ["Avg unit SF", p.avgUnitSF],
+          ["Occupancy", occDisplay],
+          ["Rent PSF", p.rentPSF ? `$${Number(p.rentPSF).toFixed(2)}` : null],
+          ["Avg rent", p.avgRent ? `$${Math.round(p.avgRent).toLocaleString()}` : null]
+        ]
+          .map(
+            ([k, v]) => `<div class="popup-row"><span class="k">${escapeHTML(k)}</span><span class="v">${escapeHTML(
+              String(v || "—")
+            )}</span></div>`
+          )
+          .join("");
+        const link = p.yardiLink
+          ? `<a class="popup-link" href="${escapeAttr(normalizeUrl(p.yardiLink))}" target="_blank" rel="noopener">View in Yardi →</a>`
+          : "";
+        bodyHTML = `<div class="popup-name">${escapeHTML(p.name || "Unnamed property")}</div>${rows}${link}`;
+      } else {
+        const isMultifamily = p.type === "Multifamily";
+        const rows = [
+          ["Address", p.address],
+          ["City", p.city],
+          ["Submarket", p.submarket],
+          ["Owner", p.ownerName],
+          ["Year built", p.yearBuilt],
+          isMultifamily ? ["Units", p.units] : ["Square feet", p.squareFeet]
+        ]
+          .map(
+            ([k, v]) => `<div class="popup-row"><span class="k">${escapeHTML(k)}</span><span class="v">${escapeHTML(
+              String(v || "—")
+            )}</span></div>`
+          )
+          .join("");
+        const link = p.yardiLink
+          ? `<a class="popup-link" href="${escapeAttr(normalizeUrl(p.yardiLink))}" target="_blank" rel="noopener">View in Yardi →</a>`
+          : "";
+        bodyHTML = `<div class="popup-name">${escapeHTML(p.name || "Unnamed property")}</div>${rows}${link}`;
+      }
+
       new maplibregl.Popup({ offset: 10 })
         .setLngLat(e.features[0].geometry.coordinates.slice())
-        .setHTML(`
-          <div class="popup-accent"></div>
-          <div class="popup-body">
-            <div class="popup-name">${escapeHTML(p.name || "Unnamed property")}</div>
-            ${rows}
-            ${link}
-          </div>
-        `)
+        .setHTML(`<div class="popup-accent"></div><div class="popup-body">${bodyHTML}</div>`)
         .addTo(map);
     });
 
@@ -656,14 +748,14 @@ function initMap() {
     });
 
     setupFilterUI();
+    setupDevFilterUI();
     setupBasemapToggle();
     mapBounds = map.getBounds();
-    applyAll();
+    applyCurrentPage();
 
     map.on("moveend", () => {
       mapBounds = map.getBounds();
-      if (msExclude) msExclude.refresh();
-      updateStats(boundedToViewport(currentShownProperties()));
+      applyCurrentPage();
     });
   });
 }
@@ -769,7 +861,13 @@ function toGeoJSON(props) {
         units: p.units ?? 0,
         yardiLink: p.yardiLink || "",
         type: p.type || "",
-        squareFeet: p.squareFeet ?? 0
+        squareFeet: p.squareFeet ?? 0,
+        developerName: p.developerName || "",
+        developmentEquity: p.developmentEquity ?? 0,
+        occupancy: p.occupancy ?? 0,
+        rentPSF: p.rentPSF ?? 0,
+        avgRent: p.avgRent ?? 0,
+        avgUnitSF: p.avgUnitSF ?? 0
       }
     }))
   };
@@ -917,6 +1015,7 @@ function applyAll() {
   map.getSource("properties").setData(toGeoJSON(shown));
   updateStats(boundedToViewport(shown));
   if (msExclude) msExclude.refresh();
+  map.setPaintProperty("unclustered-point", "circle-color", YEAR_COLOR_EXPR);
 }
 
 function updateStats(filtered) {
@@ -941,14 +1040,241 @@ function updateStats(filtered) {
     .join("");
 }
 
+function formatCurrencyShort(value) {
+  const n = Number(value);
+  if (isNaN(n)) return null;
+  if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+  if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${n.toFixed(0)}`;
+}
+
+/* =========================================================
+   DEVELOPMENT PAGE
+   ========================================================= */
+
+// Auto-bucketing for the data-driven Rent PSF color scale (ROYGBIV, up to 7
+// buckets, round-number edges) — unlike Properties' fixed year-built scheme,
+// this one recomputes against whatever's currently filtered/visible.
+function niceStep(roughStep) {
+  if (roughStep <= 0) return 1;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const residual = roughStep / magnitude;
+  if (residual > 5) return 10 * magnitude;
+  if (residual > 2) return 5 * magnitude;
+  if (residual > 1) return 2 * magnitude;
+  return magnitude;
+}
+
+function numericBuckets(values, maxBuckets = 7) {
+  const nums = values.filter((v) => typeof v === "number" && !isNaN(v) && v > 0);
+  if (!nums.length) return [];
+  const min = Math.min(...nums);
+  const max = Math.max(...nums);
+  if (min === max) return [{ from: min, to: max }];
+
+  const step = niceStep((max - min) / (maxBuckets - 1));
+  const niceMin = Math.floor(min / step) * step;
+  const edges = [];
+  for (let v = niceMin; v < max + step; v += step) edges.push(v);
+  const trimmed = edges.slice(0, maxBuckets + 1);
+
+  const buckets = [];
+  for (let i = 0; i < trimmed.length - 1; i++) {
+    buckets.push({ from: trimmed[i], to: trimmed[i + 1] });
+  }
+  return buckets;
+}
+
+function applyDevelopmentColorScheme(filtered) {
+  const buckets = numericBuckets(filtered.map((p) => p.rentPSF));
+  const legendEl = document.getElementById("dev-legend");
+
+  if (!buckets.length) {
+    map.setPaintProperty("unclustered-point", "circle-color", "#9aa3ab");
+    legendEl.innerHTML = "";
+    return;
+  }
+
+  const expr = ["step", ["coalesce", ["get", "rentPSF"], 0], RAINBOW7[0]];
+  buckets.forEach((b, i) => {
+    if (i === 0) return;
+    expr.push(b.from, RAINBOW7[i % RAINBOW7.length]);
+  });
+  map.setPaintProperty("unclustered-point", "circle-color", expr);
+
+  legendEl.innerHTML = buckets
+    .map(
+      (b, i) =>
+        `<div class="legend-row"><span class="legend-swatch" style="background:${RAINBOW7[i % RAINBOW7.length]}"></span>$${b.from.toFixed(2)}–$${b.to.toFixed(2)}</div>`
+    )
+    .join("");
+}
+
+function devBasePool() {
+  return allProperties.filter((p) => p.yearBuilt && p.yearBuilt >= 2010);
+}
+
+function currentDevFacetValues(field) {
+  return [...new Set(devBasePool().map((p) => p[field]).filter(Boolean))].sort();
+}
+
+function matchesDevFacetFilters(p, f) {
+  if (!p.yearBuilt || p.yearBuilt < 2010) return false; // hard floor: Development = 2010+
+  if (f.type.size && !f.type.has(p.type)) return false;
+  if (f.submarket.size && !f.submarket.has(p.submarket)) return false;
+  if (f.city.size && !f.city.has(p.city)) return false;
+  if (f.developer.size && !f.developer.has(p.developerName)) return false;
+  if (f.yearMin !== null && p.yearBuilt < f.yearMin) return false;
+  if (f.yearMax !== null && p.yearBuilt > f.yearMax) return false;
+  if (f.unitsMin !== null && (!p.units || p.units < f.unitsMin)) return false;
+  if (f.unitsMax !== null && (!p.units || p.units > f.unitsMax)) return false;
+  return true;
+}
+
+function getDevFilterState() {
+  return {
+    type: msDevType ? msDevType.getSelected() : new Set(),
+    submarket: msDevSubmarket ? msDevSubmarket.getSelected() : new Set(),
+    city: msDevCity ? msDevCity.getSelected() : new Set(),
+    developer: msDevDeveloper ? msDevDeveloper.getSelected() : new Set(),
+    yearMin: numOrNull("dev-year-min"),
+    yearMax: numOrNull("dev-year-max"),
+    unitsMin: numOrNull("dev-units-min"),
+    unitsMax: numOrNull("dev-units-max")
+  };
+}
+
+function currentDevInViewProperties() {
+  const state = getDevFilterState();
+  return allProperties.filter((p) => matchesDevFacetFilters(p, state));
+}
+
+function devExcludeListNames() {
+  let props = currentDevInViewProperties().filter((p) => p.name);
+  if (mapBounds) props = props.filter((p) => mapBounds.contains([p.lng, p.lat]));
+  return [...new Set(props.map((p) => p.name))].sort();
+}
+
+function currentDevShownProperties() {
+  const inView = currentDevInViewProperties();
+  return inView.filter((p) => !excludedIdsDev.has(p.id));
+}
+
+function setupDevFilterUI() {
+  msDevType = buildMultiSelect(document.getElementById("dev-ms-type"), {
+    placeholder: "Property type",
+    getValues: () => currentDevFacetValues("type"),
+    onChange: applyCurrentPage
+  });
+  msDevSubmarket = buildMultiSelect(document.getElementById("dev-ms-submarket"), {
+    placeholder: "Submarket",
+    getValues: () => currentDevFacetValues("submarket"),
+    onChange: applyCurrentPage
+  });
+  msDevCity = buildMultiSelect(document.getElementById("dev-ms-city"), {
+    placeholder: "City",
+    getValues: () => currentDevFacetValues("city"),
+    onChange: applyCurrentPage
+  });
+  msDevDeveloper = buildMultiSelect(document.getElementById("dev-ms-developer"), {
+    placeholder: "Developer",
+    getValues: () => currentDevFacetValues("developerName"),
+    onChange: applyCurrentPage
+  });
+  msDevExclude = buildMultiSelect(document.getElementById("dev-ms-exclude"), {
+    placeholder: "Exclude properties",
+    getValues: devExcludeListNames,
+    getSelectedInitial: () => new Set(),
+    onChange: (selectedNames) => {
+      excludedIdsDev = idsForNames(selectedNames);
+      applyCurrentPage();
+    }
+  });
+
+  ["dev-year-min", "dev-year-max", "dev-units-min", "dev-units-max"].forEach((id) =>
+    document.getElementById(id).addEventListener("input", applyCurrentPage)
+  );
+
+  document.getElementById("dev-reset-btn").addEventListener("click", () => {
+    [msDevType, msDevSubmarket, msDevCity, msDevDeveloper, msDevExclude].forEach((ms) => ms.reset());
+    ["dev-year-min", "dev-year-max", "dev-units-min", "dev-units-max"].forEach(
+      (id) => (document.getElementById(id).value = "")
+    );
+    excludedIdsDev = new Set();
+    applyCurrentPage();
+  });
+}
+
+function updateDevStats(filtered) {
+  document.getElementById("dev-stat-count").textContent = filtered.length.toLocaleString();
+  const totalUnits = filtered.reduce((sum, p) => sum + (p.units || 0), 0);
+  document.getElementById("dev-stat-units").textContent = totalUnits.toLocaleString();
+
+  const avgOf = (field) => {
+    const known = filtered.filter((p) => p[field]);
+    return known.length ? known.reduce((s, p) => s + p[field], 0) / known.length : null;
+  };
+
+  const avgSF = avgOf("avgUnitSF");
+  document.getElementById("dev-stat-sf").textContent = avgSF != null ? Math.round(avgSF).toLocaleString() : "—";
+
+  const avgRentVal = avgOf("avgRent");
+  document.getElementById("dev-stat-rent").textContent =
+    avgRentVal != null ? `$${Math.round(avgRentVal).toLocaleString()}` : "—";
+
+  const avgRentPSF = avgOf("rentPSF");
+  document.getElementById("dev-stat-rentpsf").textContent = avgRentPSF != null ? `$${avgRentPSF.toFixed(2)}` : "—";
+
+  const avgOcc = avgOf("occupancy");
+  document.getElementById("dev-stat-occupancy").textContent =
+    avgOcc != null ? `${(avgOcc <= 1 ? avgOcc * 100 : avgOcc).toFixed(0)}%` : "—";
+}
+
+function applyDevelopmentPage() {
+  const shown = currentDevShownProperties();
+  map.getSource("properties").setData(toGeoJSON(shown));
+  const viewportShown = boundedToViewport(shown);
+  updateDevStats(viewportShown);
+  applyDevelopmentColorScheme(viewportShown);
+  if (msDevExclude) msDevExclude.refresh();
+}
+
+// Single entry point used by moveend, page switching, and initial load —
+// dispatches to whichever page is currently active.
+function applyCurrentPage() {
+  if (currentPage === "development") {
+    applyDevelopmentPage();
+  } else {
+    applyAll();
+  }
+}
+
+// The basemap toggle is a single shared component (one source of truth for
+// the actual active basemap) that gets physically moved into whichever page's
+// panel is currently visible, right above that page's own Reset button.
+function moveBasemapToggleToPage(page) {
+  const toggleEl = document.getElementById("basemap-toggle");
+  const anchorId = page === "development" ? "dev-reset-btn" : "reset-btn";
+  const anchor = document.getElementById(anchorId);
+  if (anchor) anchor.parentNode.insertBefore(toggleEl, anchor);
+}
+
 /* =========================================================
    PAGE SWITCHER
    ========================================================= */
 document.getElementById("page-switcher").addEventListener("change", (e) => {
   const page = e.target.value;
+  currentPage = page;
+
   document.getElementById("filters-properties").style.display = page === "properties" ? "block" : "none";
   document.getElementById("filters-development").style.display = page === "development" ? "block" : "none";
   document.getElementById("filters-sales").style.display = page === "sales" ? "block" : "none";
+
+  document.getElementById("stats-properties").style.display = page === "properties" ? "block" : "none";
+  document.getElementById("stats-development").style.display = page === "development" ? "block" : "none";
+
+  moveBasemapToggleToPage(page);
+  applyCurrentPage();
 });
 </script>
 
