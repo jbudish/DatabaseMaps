@@ -29,7 +29,7 @@
   #app { display: flex; height: 100%; }
 
   #sidebar {
-    width: 300px;
+    width: 275px;
     flex-shrink: 0;
     background: var(--panel);
     border-right: 1px solid var(--line);
@@ -102,7 +102,9 @@
   input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
 
   .range-row { display: flex; gap: 6px; align-items: center; }
-  .range-row span { color: var(--ink-soft); font-size: 12px; }
+  .range-row span { color: var(--ink-soft); font-size: 12px; flex-shrink: 0; }
+  .range-row input { flex: 1 1 0; min-width: 0; }
+  .range-row input[type="month"] { font-size: 12px; padding-left: 6px; padding-right: 4px; }
 
   /* ---------- MULTI-SELECT WITH SEARCH (shared by filters + exclude list) ---------- */
   .ms { position: relative; }
@@ -178,7 +180,7 @@
   #map-wrap { flex: 1; position: relative; display: flex; }
   #map { flex: 1; position: relative; }
   #stats {
-    width: 253px;
+    width: 275px;
     flex-shrink: 0;
     background: #fff;
     border-left: 1px solid var(--line);
@@ -207,6 +209,7 @@
     justify-content: space-between;
     align-items: baseline;
   }
+  .rank-header-row .stat-label:last-child { text-align: right; }
   .rank-list { margin-top: 4px; }
   .rank-row {
     display: flex;
@@ -303,7 +306,7 @@
 </head>
 <body>
 
-<div id="version-badge">v7</div>
+<div id="version-badge">v8</div>
 
 <div id="app">
   <div id="sidebar">
@@ -367,7 +370,7 @@
       <button id="dev-reset-btn" class="page-reset-btn">Reset</button>
     </div>
 
-    <div id="filters-sales">
+    <div id="filters-sales" style="display:none;">
       <div class="filter-stack">
         <div id="sales-ms-submarket" class="ms-slot" data-placeholder="Submarket"></div>
         <div id="sales-ms-city" class="ms-slot" data-placeholder="City"></div>
@@ -391,15 +394,15 @@
         </div>
 
         <div class="range-row">
-          <input type="number" id="sales-pricePerUnit-min" placeholder="$ Price/Unit" />
+          <input type="number" id="sales-pricePerUnit-min" placeholder="$K / Unit" />
           <span>to</span>
-          <input type="number" id="sales-pricePerUnit-max" placeholder="$ Price/Unit" />
+          <input type="number" id="sales-pricePerUnit-max" placeholder="$K / Unit" />
         </div>
 
         <div class="range-row">
-          <input type="number" id="sales-price-min" placeholder="Price" />
+          <input type="number" id="sales-price-min" placeholder="Price ($M)" />
           <span>to</span>
-          <input type="number" id="sales-price-max" placeholder="Price" />
+          <input type="number" id="sales-price-max" placeholder="Price ($M)" />
         </div>
 
         <div id="sales-ms-broker" class="ms-slot" data-placeholder="Broker"></div>
@@ -434,8 +437,8 @@
         </div>
         <div class="stat-block">
           <div class="rank-header-row">
-            <div class="stat-label">Largest owners</div>
-            <div class="stat-label">Units Filtered</div>
+            <div class="stat-label">Top owners</div>
+            <div class="stat-label">Units Shown</div>
           </div>
           <div class="rank-list" id="stat-owners"></div>
         </div>
@@ -468,8 +471,8 @@
         </div>
         <div class="stat-block">
           <div class="rank-header-row">
-            <div class="stat-label">Largest developers</div>
-            <div class="stat-label">Units Filtered</div>
+            <div class="stat-label">Top developers</div>
+            <div class="stat-label">Units Shown</div>
           </div>
           <div class="rank-list" id="dev-stat-developers"></div>
         </div>
@@ -1315,6 +1318,10 @@ function numOrNull(id) {
   const v = document.getElementById(id).value;
   return v ? parseInt(v, 10) : null;
 }
+function numOrNullScaled(id, multiplier) {
+  const v = document.getElementById(id).value;
+  return v ? parseFloat(v) * multiplier : null;
+}
 
 function matchesFacetFilters(p, f) {
   if (f.type.size && !f.type.has(p.type)) return false;
@@ -1586,7 +1593,7 @@ function updateDevStats(filtered) {
     if (!p.developerName) return;
     developerUnits[p.developerName] = (developerUnits[p.developerName] || 0) + (p.units || 0);
   });
-  const topDevelopers = Object.entries(developerUnits).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topDevelopers = Object.entries(developerUnits).sort((a, b) => b[1] - a[1]).slice(0, 10);
   document.getElementById("dev-stat-developers").innerHTML = topDevelopers
     .map(([name, units]) => `<div class="rank-row"><span>${escapeHTML(name)}</span><span class="n">${units.toLocaleString()}</span></div>`)
     .join("");
@@ -1614,7 +1621,7 @@ function renderDevChart(filtered) {
       const barH = (val / maxVal) * (h - padBottom - padTop);
       const x = i * barW;
       const y0 = h - padBottom - barH;
-      return `<rect x="${(x + 1).toFixed(1)}" y="${y0.toFixed(1)}" width="${(barW - 2).toFixed(1)}" height="${barH.toFixed(1)}" fill="#1a3a5c"><title>${y}: ${val.toLocaleString()} units</title></rect>`;
+      return `<rect data-year="${y}" data-total="${val}" x="${(x + 1).toFixed(1)}" y="${y0.toFixed(1)}" width="${(barW - 2).toFixed(1)}" height="${barH.toFixed(1)}" fill="#1a3a5c" style="cursor:pointer;"><title>${y}: ${val.toLocaleString()} units</title></rect>`;
     })
     .join("");
 
@@ -1628,7 +1635,16 @@ function renderDevChart(filtered) {
     .join("");
 
   document.getElementById("dev-chart").innerHTML =
-    `<svg viewBox="0 0 ${w} ${h}" width="100%" height="110" style="overflow:visible">${bars}${labels}</svg>`;
+    `<svg viewBox="0 0 ${w} ${h}" width="100%" height="110" style="overflow:visible">${bars}${labels}</svg>` +
+    `<div id="dev-chart-caption" style="font-size:12px;color:var(--navy);font-weight:700;margin-top:4px;min-height:16px;"></div>`;
+
+  document.querySelectorAll("#dev-chart rect").forEach((rect) => {
+    rect.addEventListener("click", () => {
+      const year = rect.getAttribute("data-year");
+      const total = Number(rect.getAttribute("data-total"));
+      document.getElementById("dev-chart-caption").textContent = `${year}: ${total.toLocaleString()} units`;
+    });
+  });
 }
 
 function applyDevelopmentPage() {
@@ -1685,10 +1701,10 @@ function getSalesFilterState() {
     yearMax: numOrNull("sales-year-max"),
     unitsMin: numOrNull("sales-units-min"),
     unitsMax: numOrNull("sales-units-max"),
-    ppuMin: numOrNull("sales-pricePerUnit-min"),
-    ppuMax: numOrNull("sales-pricePerUnit-max"),
-    priceMin: numOrNull("sales-price-min"),
-    priceMax: numOrNull("sales-price-max")
+    ppuMin: numOrNullScaled("sales-pricePerUnit-min", 1000),
+    ppuMax: numOrNullScaled("sales-pricePerUnit-max", 1000),
+    priceMin: numOrNullScaled("sales-price-min", 1000000),
+    priceMax: numOrNullScaled("sales-price-max", 1000000)
   };
 }
 
@@ -1829,16 +1845,16 @@ function computeTopBuyers(salesShown) {
 
   const result = Object.entries(recentVolume)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
+    .slice(0, 10)
     .map(([name, vol]) => ({ name, vol }));
 
-  if (result.length < 5) {
+  if (result.length < 10) {
     const already = new Set(result.map((r) => r.name));
     const backfill = Object.entries(allTimeVolume)
       .filter(([name]) => !already.has(name))
       .sort((a, b) => b[1] - a[1]);
     for (const [name, vol] of backfill) {
-      if (result.length >= 5) break;
+      if (result.length >= 10) break;
       result.push({ name, vol });
     }
   }
