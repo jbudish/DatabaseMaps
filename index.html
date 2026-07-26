@@ -320,7 +320,7 @@
 </head>
 <body>
 
-<div id="version-badge">v10</div>
+<div id="version-badge">v11</div>
 
 <div id="app">
   <div id="sidebar">
@@ -390,13 +390,9 @@
         <div id="sales-ms-city" class="ms-slot" data-placeholder="City"></div>
 
         <div class="range-row">
-          <input type="number" id="sales-close-month-min" placeholder="Month" min="1" max="12" />
-          <input type="number" id="sales-close-year-min" placeholder="Year" />
-        </div>
-        <div class="range-row">
+          <select id="sales-close-min" class="filter-select"></select>
           <span>to</span>
-          <input type="number" id="sales-close-month-max" placeholder="Month" min="1" max="12" />
-          <input type="number" id="sales-close-year-max" placeholder="Year" />
+          <select id="sales-close-max" class="filter-select"></select>
         </div>
 
         <div class="range-row">
@@ -976,7 +972,7 @@ function initMap() {
         ["Close", p.closeLabel],
         ["Price", p.price ? formatCurrencyShort(p.price) : null],
         ["$ Price/Unit", p.pricePerUnit ? formatCurrencyShort(p.pricePerUnit) : null],
-        ["$ Price/SF", p.pricePerSF ? `$${Number(p.pricePerSF).toFixed(2)}` : null],
+        ["$ Price/SF", p.pricePerSF ? `$${Number(p.pricePerSF).toFixed(0)}` : null],
         ["Buyer", p.buyerName],
         ["Seller", p.sellerName],
         ["Broker", p.effectiveBroker]
@@ -1442,9 +1438,13 @@ function updateStats(filtered) {
 function formatCurrencyShort(value) {
   const n = Number(value);
   if (isNaN(n)) return null;
-  if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n.toFixed(0)}`;
+  if (Math.abs(n) >= 1_000_000) {
+    return `$${(n / 1_000_000).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
+  }
+  if (Math.abs(n) >= 1_000) {
+    return `$${Math.round(n / 1_000).toLocaleString()}K`;
+  }
+  return `$${Math.round(n).toLocaleString()}`;
 }
 
 /* =========================================================
@@ -1744,12 +1744,27 @@ function matchesSalesFacetFilters(s, f) {
   return true;
 }
 
-function buildYearMonth(monthId, yearId) {
-  const monthRaw = document.getElementById(monthId).value;
-  const year = document.getElementById(yearId).value;
-  if (!monthRaw || !year) return null;
-  const month = String(parseInt(monthRaw, 10)).padStart(2, "0");
-  return `${year}-${month}`;
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Builds "Jul '26, Jun '26, ... " options going back 10 years (120 months)
+// from the current month, most recent first. Option value is "YYYY-MM" for
+// direct string comparison against a sale's close date.
+function buildCloseMonthOptions() {
+  const now = new Date();
+  const opts = [`<option value="">Any</option>`];
+  for (let i = 0; i < 120; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = `${MONTH_ABBR[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`;
+    opts.push(`<option value="${ym}">${label}</option>`);
+  }
+  return opts.join("");
+}
+
+function populateCloseDropdowns() {
+  const optionsHTML = buildCloseMonthOptions();
+  document.getElementById("sales-close-min").innerHTML = optionsHTML;
+  document.getElementById("sales-close-max").innerHTML = optionsHTML;
 }
 
 function getSalesFilterState() {
@@ -1760,8 +1775,8 @@ function getSalesFilterState() {
     buyer: msSalesBuyer ? msSalesBuyer.getSelected() : new Set(),
     seller: msSalesSeller ? msSalesSeller.getSelected() : new Set(),
     stage: msSalesStage ? msSalesStage.getSelected() : new Set(),
-    closeMin: buildYearMonth("sales-close-month-min", "sales-close-year-min"),
-    closeMax: buildYearMonth("sales-close-month-max", "sales-close-year-max"),
+    closeMin: document.getElementById("sales-close-min").value || null,
+    closeMax: document.getElementById("sales-close-max").value || null,
     yearMin: numOrNull("sales-year-min"),
     yearMax: numOrNull("sales-year-max"),
     unitsMin: numOrNull("sales-units-min"),
@@ -1873,8 +1888,10 @@ function setupSalesFilterUI() {
     }
   });
 
+  populateCloseDropdowns();
+
   [
-    "sales-close-month-min", "sales-close-year-min", "sales-close-month-max", "sales-close-year-max",
+    "sales-close-min", "sales-close-max",
     "sales-year-min", "sales-year-max",
     "sales-units-min", "sales-units-max", "sales-pricePerUnit-min", "sales-pricePerUnit-max",
     "sales-price-min", "sales-price-max"
@@ -1888,7 +1905,7 @@ function setupSalesFilterUI() {
       (ms) => ms.reset()
     );
     [
-      "sales-close-month-min", "sales-close-year-min", "sales-close-month-max", "sales-close-year-max",
+      "sales-close-min", "sales-close-max",
       "sales-year-min", "sales-year-max",
       "sales-units-min", "sales-units-max", "sales-pricePerUnit-min", "sales-pricePerUnit-max",
       "sales-price-min", "sales-price-max"
@@ -1958,7 +1975,7 @@ function updateSalesStats(filtered) {
     const known = filtered.filter((s) => s.pricePerSF && s.pricePerSF <= 1000);
     return known.length ? known.reduce((sum, s) => sum + s.pricePerSF, 0) / known.length : null;
   })();
-  document.getElementById("sales-stat-pricepersf").textContent = avgPPSFClean != null ? `$${avgPPSFClean.toFixed(2)}` : "—";
+  document.getElementById("sales-stat-pricepersf").textContent = avgPPSFClean != null ? `$${avgPPSFClean.toFixed(0)}` : "—";
 
   const topBuyers = computeTopBuyers(filtered);
   document.getElementById("sales-stat-buyers").innerHTML = topBuyers
