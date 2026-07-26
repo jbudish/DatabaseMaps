@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Property Map</title>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
@@ -391,7 +391,7 @@
 </head>
 <body>
 
-<div id="version-badge">v13</div>
+<div id="version-badge">v14</div>
 
 <div id="app">
   <div id="sidebar">
@@ -1943,9 +1943,10 @@ function setupSalesFilterUI() {
         const brokers = new Set([s.brokerSellerName, s.brokerBuyerName].filter(Boolean));
         brokers.forEach((name) => (salesByBroker[name] = (salesByBroker[name] || 0) + 1));
       });
-      return Object.keys(salesByBroker)
-        .filter((name) => salesByBroker[name] >= 2)
-        .sort();
+      const eligible = Object.keys(salesByBroker).filter((name) => salesByBroker[name] >= 2);
+      const pinned = "Northmarq MSP IS Team";
+      const rest = eligible.filter((name) => name !== pinned).sort();
+      return eligible.includes(pinned) ? [pinned, ...rest] : rest;
     },
     onChange: applyCurrentPage
   });
