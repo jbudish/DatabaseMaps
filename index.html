@@ -106,6 +106,20 @@
   .range-row input { flex: 1 1 0; min-width: 0; }
   .range-row input[type="month"] { font-size: 12px; padding-left: 6px; padding-right: 4px; }
 
+  .filter-select {
+    font-family: 'Inter', sans-serif;
+    font-size: 12.5px;
+    padding: 8px 6px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+    color: var(--ink);
+    outline: none;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .filter-select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+
   /* ---------- MULTI-SELECT WITH SEARCH (shared by filters + exclude list) ---------- */
   .ms { position: relative; }
   .ms-button {
@@ -306,7 +320,7 @@
 </head>
 <body>
 
-<div id="version-badge">v8</div>
+<div id="version-badge">v9</div>
 
 <div id="app">
   <div id="sidebar">
@@ -376,9 +390,13 @@
         <div id="sales-ms-city" class="ms-slot" data-placeholder="City"></div>
 
         <div class="range-row">
-          <input type="month" id="sales-close-min" />
+          <select id="sales-close-month-min" class="filter-select"></select>
+          <select id="sales-close-year-min" class="filter-select"></select>
+        </div>
+        <div class="range-row">
           <span>to</span>
-          <input type="month" id="sales-close-max" />
+          <select id="sales-close-month-max" class="filter-select"></select>
+          <select id="sales-close-year-max" class="filter-select"></select>
         </div>
 
         <div class="range-row">
@@ -412,6 +430,9 @@
         <div id="sales-ms-exclude" class="ms-slot"></div>
         <div id="sales-basemap-toggle" class="ms-slot"></div>
       </div>
+
+      <div class="filter-section-title">$ / Unit</div>
+      <div id="sales-legend"></div>
 
       <button id="sales-reset-btn" class="page-reset-btn">Reset</button>
     </div>
@@ -506,6 +527,10 @@
         <div class="stat-block">
           <div class="stat-label">Top recent buyers</div>
           <div class="rank-list" id="sales-stat-buyers"></div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Volume by year</div>
+          <div id="sales-chart"></div>
         </div>
       </div>
     </div>
@@ -618,7 +643,7 @@ Promise.all([
         price: s.price,
         pricePerUnit: s.pricePerUnit,
         pricePerSF: s.pricePerSF,
-        yearBuilt: s.yearBuilt,
+        yearBuilt: prop ? prop.yearBuilt : null,
         close: s.close,
         stage: s.stage || "",
         brokerSellerName,
@@ -1079,10 +1104,6 @@ function addSalesLayers() {
     paint: { "text-color": "#ffffff" }
   });
 
-  const stageColorExpr = ["match", ["get", "stage"]];
-  STAGE_ORDER.forEach((s) => stageColorExpr.push(s, STAGE_COLORS[s].color));
-  stageColorExpr.push(DEFAULT_STAGE_COLOR);
-
   map.addLayer({
     id: "sales-points",
     type: "circle",
@@ -1090,7 +1111,7 @@ function addSalesLayers() {
     filter: ["!", ["has", "point_count"]],
     layout: { visibility: "none" },
     paint: {
-      "circle-color": stageColorExpr,
+      "circle-color": PPU_COLOR_EXPR,
       "circle-radius": PRICE_SIZE_EXPR,
       "circle-stroke-width": 1,
       "circle-stroke-color": "#ffffff"
@@ -1472,6 +1493,42 @@ function applyDevelopmentColorScheme() {
   map.setPaintProperty("unclustered-point", "circle-color", RENT_PSF_COLOR_EXPR);
 }
 
+// Fixed $/Unit color scale for Sales dots: <$75K to $300K+, plus a dedicated
+// dark charcoal "N/A" bucket for sales missing price/unit data (defaults to
+// 0 in the GeoJSON, treated as the N/A sentinel rather than a real $0).
+const PPU_BUCKETS = [
+  { color: RAINBOW7[0], label: "< $75K" },
+  { color: RAINBOW7[1], label: "$75K+" },
+  { color: RAINBOW7[2], label: "$100K+" },
+  { color: RAINBOW7[3], label: "$150K+" },
+  { color: RAINBOW7[4], label: "$200K+" },
+  { color: RAINBOW7[5], label: "$250K+" },
+  { color: RAINBOW7[6], label: "$300K+" }
+];
+
+const PPU_COLOR_EXPR = [
+  "case",
+  ["==", ["get", "pricePerUnit"], 0], NA_COLOR,
+  [
+    "step", ["get", "pricePerUnit"],
+    PPU_BUCKETS[0].color,
+    75000, PPU_BUCKETS[1].color,
+    100000, PPU_BUCKETS[2].color,
+    150000, PPU_BUCKETS[3].color,
+    200000, PPU_BUCKETS[4].color,
+    250000, PPU_BUCKETS[5].color,
+    300000, PPU_BUCKETS[6].color
+  ]
+];
+
+function renderPpuLegend() {
+  const rows = PPU_BUCKETS.map(
+    (b) => `<div class="legend-row"><span class="legend-swatch" style="background:${b.color}"></span>${b.label}</div>`
+  );
+  rows.push(`<div class="legend-row"><span class="legend-swatch" style="background:${NA_COLOR}"></span>N/A</div>`);
+  document.getElementById("sales-legend").innerHTML = rows.join("");
+}
+
 
 function devBasePool() {
   return allProperties.filter((p) => p.yearBuilt && p.yearBuilt >= 2010 && p.type === "Multifamily");
@@ -1687,6 +1744,26 @@ function matchesSalesFacetFilters(s, f) {
   return true;
 }
 
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function buildYearMonth(monthId, yearId) {
+  const month = document.getElementById(monthId).value;
+  const year = document.getElementById(yearId).value;
+  if (!month || !year) return null;
+  return `${year}-${month}`;
+}
+
+function populateCloseDropdowns() {
+  const years = [...new Set(allSales.map((s) => (s.close ? s.close.slice(0, 4) : null)).filter(Boolean))].sort();
+  const monthOptions =
+    `<option value="">Month</option>` +
+    MONTH_ABBR.map((m, i) => `<option value="${String(i + 1).padStart(2, "0")}">${m}</option>`).join("");
+  const yearOptions = `<option value="">Year</option>` + years.map((y) => `<option value="${y}">${y}</option>`).join("");
+
+  ["sales-close-month-min", "sales-close-month-max"].forEach((id) => (document.getElementById(id).innerHTML = monthOptions));
+  ["sales-close-year-min", "sales-close-year-max"].forEach((id) => (document.getElementById(id).innerHTML = yearOptions));
+}
+
 function getSalesFilterState() {
   return {
     submarket: msSalesSubmarket ? msSalesSubmarket.getSelected() : new Set(),
@@ -1695,8 +1772,8 @@ function getSalesFilterState() {
     buyer: msSalesBuyer ? msSalesBuyer.getSelected() : new Set(),
     seller: msSalesSeller ? msSalesSeller.getSelected() : new Set(),
     stage: msSalesStage ? msSalesStage.getSelected() : new Set(),
-    closeMin: document.getElementById("sales-close-min").value || null,
-    closeMax: document.getElementById("sales-close-max").value || null,
+    closeMin: buildYearMonth("sales-close-month-min", "sales-close-year-min"),
+    closeMax: buildYearMonth("sales-close-month-max", "sales-close-year-max"),
     yearMin: numOrNull("sales-year-min"),
     yearMax: numOrNull("sales-year-max"),
     unitsMin: numOrNull("sales-units-min"),
@@ -1750,6 +1827,8 @@ function currentSalesShown() {
 }
 
 function setupSalesFilterUI() {
+  renderPpuLegend();
+
   msSalesSubmarket = buildMultiSelect(document.getElementById("sales-ms-submarket"), {
     placeholder: "Submarket",
     getValues: () => currentSalesFacetValues("submarket"),
@@ -1798,13 +1877,16 @@ function setupSalesFilterUI() {
     }
   });
 
+  populateCloseDropdowns();
+
   [
-    "sales-close-min", "sales-close-max", "sales-year-min", "sales-year-max",
+    "sales-close-month-min", "sales-close-year-min", "sales-close-month-max", "sales-close-year-max",
+    "sales-year-min", "sales-year-max",
     "sales-units-min", "sales-units-max", "sales-pricePerUnit-min", "sales-pricePerUnit-max",
     "sales-price-min", "sales-price-max"
   ].forEach((id) => {
     const el = document.getElementById(id);
-    el.addEventListener(el.type === "month" ? "change" : "input", applyCurrentPage);
+    el.addEventListener(el.tagName === "SELECT" ? "change" : "input", applyCurrentPage);
   });
 
   document.getElementById("sales-reset-btn").addEventListener("click", () => {
@@ -1812,7 +1894,8 @@ function setupSalesFilterUI() {
       (ms) => ms.reset()
     );
     [
-      "sales-close-min", "sales-close-max", "sales-year-min", "sales-year-max",
+      "sales-close-month-min", "sales-close-year-min", "sales-close-month-max", "sales-close-year-max",
+      "sales-year-min", "sales-year-max",
       "sales-units-min", "sales-units-max", "sales-pricePerUnit-min", "sales-pricePerUnit-max",
       "sales-price-min", "sales-price-max"
     ].forEach((id) => (document.getElementById(id).value = ""));
@@ -1877,8 +1960,11 @@ function updateSalesStats(filtered) {
   const avgPPU = avgOf("pricePerUnit");
   document.getElementById("sales-stat-priceperunit").textContent = avgPPU != null ? formatCurrencyShort(avgPPU) : "—";
 
-  const avgPPSF = avgOf("pricePerSF");
-  document.getElementById("sales-stat-pricepersf").textContent = avgPPSF != null ? `$${avgPPSF.toFixed(2)}` : "—";
+  const avgPPSFClean = (() => {
+    const known = filtered.filter((s) => s.pricePerSF && s.pricePerSF <= 1000);
+    return known.length ? known.reduce((sum, s) => sum + s.pricePerSF, 0) / known.length : null;
+  })();
+  document.getElementById("sales-stat-pricepersf").textContent = avgPPSFClean != null ? `$${avgPPSFClean.toFixed(2)}` : "—";
 
   const topBuyers = computeTopBuyers(filtered);
   document.getElementById("sales-stat-buyers").innerHTML = topBuyers
@@ -1886,6 +1972,65 @@ function updateSalesStats(filtered) {
       (b) => `<div class="rank-row"><span>${escapeHTML(b.name)}</span><span class="n">${formatCurrencyShort(b.vol)}</span></div>`
     )
     .join("");
+
+  renderSalesChart(filtered);
+}
+
+// Bar chart: total sale price volume per close-year, based on whatever's
+// currently shown (filtered + viewport-bounded). Year range is derived from
+// the actual data present rather than a fixed span, since close dates can
+// range far into the past or (for pipeline deals) the future.
+function renderSalesChart(filtered) {
+  const withClose = filtered.filter((s) => s.close && s.price);
+  const container = document.getElementById("sales-chart");
+
+  if (!withClose.length) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const yearOf = (s) => new Date(s.close).getFullYear();
+  const years = [...new Set(withClose.map(yearOf))].sort((a, b) => a - b);
+  const minYear = years[0], maxYear = years[years.length - 1];
+  const allYears = [];
+  for (let y = minYear; y <= maxYear; y++) allYears.push(y);
+
+  const totals = allYears.map((y) => withClose.filter((s) => yearOf(s) === y).reduce((sum, s) => sum + s.price, 0));
+  const maxVal = Math.max(1, ...totals);
+
+  const w = 210, h = 110, padBottom = 14, padTop = 4;
+  const barW = w / allYears.length;
+
+  const bars = allYears
+    .map((y, i) => {
+      const val = totals[i];
+      const barH = (val / maxVal) * (h - padBottom - padTop);
+      const x = i * barW;
+      const y0 = h - padBottom - barH;
+      return `<rect data-year="${y}" data-total="${val}" x="${(x + 1).toFixed(1)}" y="${y0.toFixed(1)}" width="${(barW - 2).toFixed(1)}" height="${barH.toFixed(1)}" fill="#1a3a5c" style="cursor:pointer;"><title>${y}: ${formatCurrencyShort(val)}</title></rect>`;
+    })
+    .join("");
+
+  const labelEvery = allYears.length > 12 ? 2 : 1;
+  const labels = allYears
+    .map((y, i) => {
+      if (i % labelEvery !== 0) return "";
+      const x = i * barW + barW / 2;
+      return `<text x="${x.toFixed(1)}" y="${h - 2}" font-size="7" text-anchor="middle" fill="#6b7688">${String(y).slice(2)}</text>`;
+    })
+    .join("");
+
+  container.innerHTML =
+    `<svg viewBox="0 0 ${w} ${h}" width="100%" height="110" style="overflow:visible">${bars}${labels}</svg>` +
+    `<div id="sales-chart-caption" style="font-size:12px;color:var(--navy);font-weight:700;margin-top:4px;min-height:16px;"></div>`;
+
+  container.querySelectorAll("rect").forEach((rect) => {
+    rect.addEventListener("click", () => {
+      const year = rect.getAttribute("data-year");
+      const total = Number(rect.getAttribute("data-total"));
+      document.getElementById("sales-chart-caption").textContent = `${year}: ${formatCurrencyShort(total)}`;
+    });
+  });
 }
 
 function applySalesPage() {
