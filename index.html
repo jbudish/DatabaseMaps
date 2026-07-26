@@ -320,7 +320,7 @@
 </head>
 <body>
 
-<div id="version-badge">v9</div>
+<div id="version-badge">v10</div>
 
 <div id="app">
   <div id="sidebar">
@@ -390,13 +390,13 @@
         <div id="sales-ms-city" class="ms-slot" data-placeholder="City"></div>
 
         <div class="range-row">
-          <select id="sales-close-month-min" class="filter-select"></select>
-          <select id="sales-close-year-min" class="filter-select"></select>
+          <input type="number" id="sales-close-month-min" placeholder="Month" min="1" max="12" />
+          <input type="number" id="sales-close-year-min" placeholder="Year" />
         </div>
         <div class="range-row">
           <span>to</span>
-          <select id="sales-close-month-max" class="filter-select"></select>
-          <select id="sales-close-year-max" class="filter-select"></select>
+          <input type="number" id="sales-close-month-max" placeholder="Month" min="1" max="12" />
+          <input type="number" id="sales-close-year-max" placeholder="Year" />
         </div>
 
         <div class="range-row">
@@ -1744,24 +1744,12 @@ function matchesSalesFacetFilters(s, f) {
   return true;
 }
 
-const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 function buildYearMonth(monthId, yearId) {
-  const month = document.getElementById(monthId).value;
+  const monthRaw = document.getElementById(monthId).value;
   const year = document.getElementById(yearId).value;
-  if (!month || !year) return null;
+  if (!monthRaw || !year) return null;
+  const month = String(parseInt(monthRaw, 10)).padStart(2, "0");
   return `${year}-${month}`;
-}
-
-function populateCloseDropdowns() {
-  const years = [...new Set(allSales.map((s) => (s.close ? s.close.slice(0, 4) : null)).filter(Boolean))].sort();
-  const monthOptions =
-    `<option value="">Month</option>` +
-    MONTH_ABBR.map((m, i) => `<option value="${String(i + 1).padStart(2, "0")}">${m}</option>`).join("");
-  const yearOptions = `<option value="">Year</option>` + years.map((y) => `<option value="${y}">${y}</option>`).join("");
-
-  ["sales-close-month-min", "sales-close-month-max"].forEach((id) => (document.getElementById(id).innerHTML = monthOptions));
-  ["sales-close-year-min", "sales-close-year-max"].forEach((id) => (document.getElementById(id).innerHTML = yearOptions));
 }
 
 function getSalesFilterState() {
@@ -1841,8 +1829,16 @@ function setupSalesFilterUI() {
   });
   msSalesBroker = buildMultiSelect(document.getElementById("sales-ms-broker"), {
     placeholder: "Broker",
-    getValues: () =>
-      [...new Set(salesBasePool().flatMap((s) => [s.brokerSellerName, s.brokerBuyerName]).filter(Boolean))].sort(),
+    getValues: () => {
+      const salesByBroker = {};
+      salesBasePool().forEach((s) => {
+        const brokers = new Set([s.brokerSellerName, s.brokerBuyerName].filter(Boolean));
+        brokers.forEach((name) => (salesByBroker[name] = (salesByBroker[name] || 0) + 1));
+      });
+      return Object.keys(salesByBroker)
+        .filter((name) => salesByBroker[name] >= 2)
+        .sort();
+    },
     onChange: applyCurrentPage
   });
   msSalesBuyer = buildMultiSelect(document.getElementById("sales-ms-buyer"), {
@@ -1876,8 +1872,6 @@ function setupSalesFilterUI() {
       applyCurrentPage();
     }
   });
-
-  populateCloseDropdowns();
 
   [
     "sales-close-month-min", "sales-close-year-min", "sales-close-month-max", "sales-close-year-max",
@@ -1981,17 +1975,14 @@ function updateSalesStats(filtered) {
 // the actual data present rather than a fixed span, since close dates can
 // range far into the past or (for pipeline deals) the future.
 function renderSalesChart(filtered) {
-  const withClose = filtered.filter((s) => s.close && s.price);
   const container = document.getElementById("sales-chart");
-
-  if (!withClose.length) {
-    container.innerHTML = "";
-    return;
-  }
+  const currentYear = new Date().getFullYear();
+  const minYear = currentYear - 9;
+  const maxYear = currentYear;
 
   const yearOf = (s) => new Date(s.close).getFullYear();
-  const years = [...new Set(withClose.map(yearOf))].sort((a, b) => a - b);
-  const minYear = years[0], maxYear = years[years.length - 1];
+  const withClose = filtered.filter((s) => s.close && s.price && yearOf(s) >= minYear && yearOf(s) <= maxYear);
+
   const allYears = [];
   for (let y = minYear; y <= maxYear; y++) allYears.push(y);
 
