@@ -88,7 +88,7 @@
     margin: 6px 0 0;
   }
 
-  input[type="text"], input[type="number"] {
+  input[type="text"], input[type="number"], input[type="month"] {
     font-family: 'Inter', sans-serif;
     font-size: 13.5px;
     padding: 8px 10px;
@@ -303,7 +303,7 @@
 </head>
 <body>
 
-<div id="version-badge">v6</div>
+<div id="version-badge">v7</div>
 
 <div id="app">
   <div id="sidebar">
@@ -367,8 +367,50 @@
       <button id="dev-reset-btn" class="page-reset-btn">Reset</button>
     </div>
 
-    <div id="filters-sales" style="display:none;">
-      <div class="coming-soon">Sales page — coming in the next phase.</div>
+    <div id="filters-sales">
+      <div class="filter-stack">
+        <div id="sales-ms-submarket" class="ms-slot" data-placeholder="Submarket"></div>
+        <div id="sales-ms-city" class="ms-slot" data-placeholder="City"></div>
+
+        <div class="range-row">
+          <input type="month" id="sales-close-min" />
+          <span>to</span>
+          <input type="month" id="sales-close-max" />
+        </div>
+
+        <div class="range-row">
+          <input type="number" id="sales-year-min" placeholder="Year Built" />
+          <span>to</span>
+          <input type="number" id="sales-year-max" placeholder="Year Built" />
+        </div>
+
+        <div class="range-row">
+          <input type="number" id="sales-units-min" placeholder="Units" />
+          <span>to</span>
+          <input type="number" id="sales-units-max" placeholder="Units" />
+        </div>
+
+        <div class="range-row">
+          <input type="number" id="sales-pricePerUnit-min" placeholder="$ Price/Unit" />
+          <span>to</span>
+          <input type="number" id="sales-pricePerUnit-max" placeholder="$ Price/Unit" />
+        </div>
+
+        <div class="range-row">
+          <input type="number" id="sales-price-min" placeholder="Price" />
+          <span>to</span>
+          <input type="number" id="sales-price-max" placeholder="Price" />
+        </div>
+
+        <div id="sales-ms-broker" class="ms-slot" data-placeholder="Broker"></div>
+        <div id="sales-ms-buyer" class="ms-slot" data-placeholder="Buyer"></div>
+        <div id="sales-ms-seller" class="ms-slot" data-placeholder="Seller"></div>
+        <div id="sales-ms-stage" class="ms-slot" data-placeholder="Stage"></div>
+        <div id="sales-ms-exclude" class="ms-slot"></div>
+        <div id="sales-basemap-toggle" class="ms-slot"></div>
+      </div>
+
+      <button id="sales-reset-btn" class="page-reset-btn">Reset</button>
     </div>
   </div>
 
@@ -436,6 +478,33 @@
           <div id="dev-chart"></div>
         </div>
       </div>
+
+      <div id="stats-sales" style="display:none;">
+        <div class="stat-block">
+          <div class="stat-label">Sales</div>
+          <div class="stat-value" id="sales-stat-count">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Units</div>
+          <div class="stat-value" id="sales-stat-units">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Avg price</div>
+          <div class="stat-value" id="sales-stat-price">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Avg price/unit</div>
+          <div class="stat-value" id="sales-stat-priceperunit">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Avg price/SF</div>
+          <div class="stat-value" id="sales-stat-pricepersf">—</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Top recent buyers</div>
+          <div class="rank-list" id="sales-stat-buyers"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -445,29 +514,118 @@
    DATA
    ========================================================= */
 let allProperties = [];
+let allSales = [];
 let companyById = {};
 let excludedIds = new Set(); // Properties page: session-only manual exclusions; checked = excluded
 let excludedIdsDev = new Set(); // Development page: its own separate exclusion set
+let excludedIdsSales = new Set(); // Sales page: its own separate exclusion set
 const DEFAULT_EXCLUDED_OWNER = "Condos / Coops";
 
 let currentPage = "properties";
 let msDevSubmarket, msDevCity, msDevDeveloper, msDevExclude;
+let msSalesSubmarket, msSalesCity, msSalesBroker, msSalesBuyer, msSalesSeller, msSalesStage, msSalesExclude;
 
 const RAINBOW7 = ["#c0392b", "#e08e4f", "#d4b106", "#1f8a4c", "#1c9e8e", "#1c5fa8", "#6b3fa0"];
+
+const STAGE_ORDER = [
+  "Closed",
+  "Under Contract - Non-Contingent",
+  "Under Contract - Contingent",
+  "Active - Listed",
+  "Active - Off Market",
+  "Active - Awarded",
+  "Pursuit - BOV",
+  "Pursuit - Underwriting",
+  "Tracking",
+  "On Hold",
+  "Didn't Sell",
+  "Lost"
+];
+
+const STAGE_COLORS = {
+  "Closed": { color: "#1f8a4c", bg: "#d3f2dd" },
+  "Under Contract - Non-Contingent": { color: "#c0392b", bg: "#fbdcd8" },
+  "Under Contract - Contingent": { color: "#c2185b", bg: "#fbdce9" },
+  "Active - Listed": { color: "#a8710a", bg: "#fdf0cf" },
+  "Active - Off Market": { color: "#a8710a", bg: "#fdf0cf" },
+  "Active - Awarded": { color: "#a8710a", bg: "#fdf0cf" },
+  "Pursuit - BOV": { color: "#c1670e", bg: "#fde3cc" },
+  "Pursuit - Underwriting": { color: "#c1670e", bg: "#fde3cc" },
+  "Tracking": { color: "#1c5fa8", bg: "#d9e8fb" },
+  "On Hold": { color: "#5c6773", bg: "#e6e8eb" },
+  "Didn't Sell": { color: "#5c6773", bg: "#e6e8eb" },
+  "Lost": { color: "#5c6773", bg: "#e6e8eb" }
+};
+const DEFAULT_STAGE_COLOR = "#9aa3ab";
+
+const PRICE_SIZE_EXPR = [
+  "step", ["coalesce", ["get", "price"], 0],
+  5,
+  5000000, 7,
+  15000000, 9,
+  30000000, 11,
+  60000000, 13
+];
+
+function formatCloseMY(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return `${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`;
+}
+
+// Known Airtable placeholder values that mean "no real company here" —
+// treated as blank everywhere they appear (filters, dropdowns, popups).
+const BLANK_ENTITY_VALUES = new Set(["Direct / None", "None/Looking"]);
+function cleanEntity(name) {
+  if (!name || BLANK_ENTITY_VALUES.has(name)) return "";
+  return name;
+}
 
 /* =========================================================
    LOAD
    ========================================================= */
 Promise.all([
   fetch("data/properties.json").then((r) => r.json()),
-  fetch("data/companies.json").then((r) => r.json())
-]).then(([props, companies]) => {
+  fetch("data/companies.json").then((r) => r.json()),
+  fetch("data/sales.json").then((r) => r.json())
+]).then(([props, companies, sales]) => {
   companyById = Object.fromEntries(companies.map((c) => [c.id, c.name]));
   allProperties = props.map((p) => ({
     ...p,
     ownerName: companyById[p.ownerId] || "",
     developerName: companyById[p.developerId] || ""
   }));
+
+  const propertyById = Object.fromEntries(allProperties.map((p) => [p.id, p]));
+  allSales = sales
+    .map((s) => {
+      const prop = propertyById[s.propertyId];
+      const brokerSellerName = cleanEntity(companyById[s.brokerSellerId] || "");
+      const brokerBuyerName = cleanEntity(companyById[s.brokerBuyerId] || "");
+      return {
+        id: s.id,
+        name: prop ? prop.name : "",
+        city: prop ? prop.city : "",
+        submarket: prop ? prop.submarket : "",
+        type: prop ? prop.type : "",
+        units: prop ? prop.units : null,
+        lat: s.lat,
+        lng: s.lng,
+        price: s.price,
+        pricePerUnit: s.pricePerUnit,
+        pricePerSF: s.pricePerSF,
+        yearBuilt: s.yearBuilt,
+        close: s.close,
+        stage: s.stage || "",
+        brokerSellerName,
+        brokerBuyerName,
+        effectiveBroker: brokerSellerName || brokerBuyerName || "",
+        buyerName: cleanEntity(companyById[s.buyerId] || ""),
+        sellerName: cleanEntity(companyById[s.sellerId] || "")
+      };
+    })
+    .filter((s) => typeof s.lat === "number" && typeof s.lng === "number");
 
   document.getElementById("loading").style.display = "none";
   initMap();
@@ -476,7 +634,7 @@ Promise.all([
 /* =========================================================
    MULTI-SELECT WITH SEARCH (reusable — used for filters + exclude list)
    ========================================================= */
-function buildMultiSelect(containerEl, { placeholder, getValues, getSelectedInitial, onChange }) {
+function buildMultiSelect(containerEl, { placeholder, getValues, getSelectedInitial, onChange, getOptionStyle }) {
   containerEl.classList.add("ms");
   containerEl.innerHTML = `
     <button type="button" class="ms-button">${placeholder}</button>
@@ -498,13 +656,15 @@ function buildMultiSelect(containerEl, { placeholder, getValues, getSelectedInit
     const term = search.value.trim().toLowerCase();
     const values = getValues().filter((v) => v.toLowerCase().includes(term));
     list.innerHTML = values
-      .map(
-        (v) => `
-      <label class="ms-option ${selected.has(v) ? "selected" : ""}">
-        <input type="checkbox" value="${escapeAttr(v)}" ${selected.has(v) ? "checked" : ""} />
+      .map((v) => {
+        const isSelected = selected.has(v);
+        const style = !isSelected && getOptionStyle ? getOptionStyle(v) : "";
+        return `
+      <label class="ms-option ${isSelected ? "selected" : ""}" style="${style}">
+        <input type="checkbox" value="${escapeAttr(v)}" ${isSelected ? "checked" : ""} />
         <span>${escapeHTML(v)}</span>
-      </label>`
-      )
+      </label>`;
+      })
       .join("");
 
     btn.textContent =
@@ -705,10 +865,19 @@ function initMap() {
   map.on("load", () => {
     setBasemap("map");
     addPropertyLayers();
+    addSalesLayers();
 
     map.on("click", "clusters", (e) => {
       const f = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
       map.getSource("properties").getClusterExpansionZoom(f[0].properties.cluster_id, (err, zoom) => {
+        if (err) return;
+        map.easeTo({ center: f[0].geometry.coordinates, zoom });
+      });
+    });
+
+    map.on("click", "sales-clusters", (e) => {
+      const f = map.queryRenderedFeatures(e.point, { layers: ["sales-clusters"] });
+      map.getSource("sales").getClusterExpansionZoom(f[0].properties.cluster_id, (err, zoom) => {
         if (err) return;
         map.easeTo({ center: f[0].geometry.coordinates, zoom });
       });
@@ -771,14 +940,47 @@ function initMap() {
         .addTo(map);
     });
 
-    ["clusters", "unclustered-point"].forEach((l) => {
+    map.on("click", "sales-points", (e) => {
+      const p = e.features[0].properties;
+      const rows = [
+        ["Units", p.units],
+        ["Year built", p.yearBuilt],
+        ["Close", p.closeLabel],
+        ["Price", p.price ? formatCurrencyShort(p.price) : null],
+        ["$ Price/Unit", p.pricePerUnit ? formatCurrencyShort(p.pricePerUnit) : null],
+        ["$ Price/SF", p.pricePerSF ? `$${Number(p.pricePerSF).toFixed(2)}` : null],
+        ["Buyer", p.buyerName],
+        ["Seller", p.sellerName],
+        ["Broker", p.effectiveBroker]
+      ]
+        .map(
+          ([k, v]) => `<div class="popup-row"><span class="k">${escapeHTML(k)}</span><span class="v">${escapeHTML(
+            String(v || "—")
+          )}</span></div>`
+        )
+        .join("");
+      new maplibregl.Popup({ offset: 10 })
+        .setLngLat(e.features[0].geometry.coordinates.slice())
+        .setHTML(`
+          <div class="popup-accent"></div>
+          <div class="popup-body">
+            <div class="popup-name">${escapeHTML(p.name || "Unnamed property")}</div>
+            ${rows}
+          </div>
+        `)
+        .addTo(map);
+    });
+
+    ["clusters", "unclustered-point", "sales-clusters", "sales-points"].forEach((l) => {
       map.on("mouseenter", l, () => (map.getCanvas().style.cursor = "pointer"));
       map.on("mouseleave", l, () => (map.getCanvas().style.cursor = ""));
     });
 
     setupFilterUI();
     setupDevFilterUI();
+    setupSalesFilterUI();
     setupBasemapToggle();
+    updateLayerVisibilityForPage("properties");
     mapBounds = map.getBounds();
     applyCurrentPage();
 
@@ -805,6 +1007,126 @@ function setBasemap(key) {
 
   const beforeId = map.getLayer("clusters") ? "clusters" : undefined;
   map.addLayer({ id: "basemap-layer", type: "raster", source: "basemap-src" }, beforeId);
+}
+
+function toSalesGeoJSON(salesArr) {
+  return {
+    type: "FeatureCollection",
+    features: salesArr.map((s) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [s.lng, s.lat] },
+      properties: {
+        id: s.id,
+        name: s.name || "",
+        city: s.city || "",
+        units: s.units ?? 0,
+        yearBuilt: s.yearBuilt ?? 0,
+        close: s.close || "",
+        closeLabel: formatCloseMY(s.close),
+        price: s.price ?? 0,
+        priceLabel: s.price ? formatCurrencyShort(s.price) : "",
+        pricePerUnit: s.pricePerUnit ?? 0,
+        pricePerSF: s.pricePerSF ?? 0,
+        buyerName: s.buyerName || "",
+        sellerName: s.sellerName || "",
+        effectiveBroker: s.effectiveBroker || "",
+        stage: s.stage || ""
+      }
+    }))
+  };
+}
+
+// Adds the Sales source + layers once, on initial load only. Starts hidden
+// (visibility: none) since Properties is the default active page; toggled
+// alongside the properties/development layers whenever the page switches.
+function addSalesLayers() {
+  map.addSource("sales", {
+    type: "geojson",
+    data: toSalesGeoJSON(allSales),
+    cluster: true,
+    clusterMaxZoom: 9,
+    clusterRadius: 25
+  });
+
+  map.addLayer({
+    id: "sales-clusters",
+    type: "circle",
+    source: "sales",
+    filter: ["has", "point_count"],
+    layout: { visibility: "none" },
+    paint: {
+      "circle-color": "#1a3a5c",
+      "circle-radius": ["interpolate", ["linear"], ["get", "point_count"], 0, 12, 10, 17, 50, 23, 200, 30],
+      "circle-stroke-width": 1,
+      "circle-stroke-color": "#ffffff"
+    }
+  });
+
+  map.addLayer({
+    id: "sales-cluster-count",
+    type: "symbol",
+    source: "sales",
+    filter: ["has", "point_count"],
+    layout: {
+      visibility: "none",
+      "text-field": ["get", "point_count_abbreviated"],
+      "text-font": ["Klokantech Noto Sans Bold"],
+      "text-size": 12
+    },
+    paint: { "text-color": "#ffffff" }
+  });
+
+  const stageColorExpr = ["match", ["get", "stage"]];
+  STAGE_ORDER.forEach((s) => stageColorExpr.push(s, STAGE_COLORS[s].color));
+  stageColorExpr.push(DEFAULT_STAGE_COLOR);
+
+  map.addLayer({
+    id: "sales-points",
+    type: "circle",
+    source: "sales",
+    filter: ["!", ["has", "point_count"]],
+    layout: { visibility: "none" },
+    paint: {
+      "circle-color": stageColorExpr,
+      "circle-radius": PRICE_SIZE_EXPR,
+      "circle-stroke-width": 1,
+      "circle-stroke-color": "#ffffff"
+    }
+  });
+
+  map.addLayer({
+    id: "sales-price-label",
+    type: "symbol",
+    source: "sales",
+    filter: ["!", ["has", "point_count"]],
+    layout: {
+      visibility: "none",
+      "text-field": ["get", "priceLabel"],
+      "text-font": ["Klokantech Noto Sans Bold"],
+      "text-size": 10,
+      "text-offset": [0, 1.3],
+      "text-anchor": "top",
+      "text-allow-overlap": false
+    },
+    paint: {
+      "text-color": "#1c2530",
+      "text-halo-color": "#ffffff",
+      "text-halo-width": 1.2
+    }
+  });
+}
+
+const PROPERTY_LAYER_IDS = ["clusters", "cluster-count", "unclustered-point"];
+const SALES_LAYER_IDS = ["sales-clusters", "sales-cluster-count", "sales-points", "sales-price-label"];
+
+function updateLayerVisibilityForPage(page) {
+  const showProps = page !== "sales";
+  PROPERTY_LAYER_IDS.forEach((id) => {
+    if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", showProps ? "visible" : "none");
+  });
+  SALES_LAYER_IDS.forEach((id) => {
+    if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", showProps ? "none" : "visible");
+  });
 }
 
 // Adds the properties source + layers once, on initial load only.
@@ -859,7 +1181,7 @@ function addPropertyLayers() {
   });
 }
 
-let msBasemapProperties, msBasemapDev;
+let msBasemapProperties, msBasemapDev, msBasemapSales;
 
 function setupBasemapToggle() {
   const options = [
@@ -870,9 +1192,10 @@ function setupBasemapToggle() {
 
   const onPick = (key) => {
     setBasemap(key);
-    // Keep both pages' toggles visually in sync, without re-triggering onChange.
+    // Keep all pages' toggles visually in sync, without re-triggering onChange.
     if (msBasemapProperties) msBasemapProperties.setValue(key);
     if (msBasemapDev) msBasemapDev.setValue(key);
+    if (msBasemapSales) msBasemapSales.setValue(key);
   };
 
   msBasemapProperties = buildSingleSelect(document.getElementById("basemap-toggle"), {
@@ -881,6 +1204,11 @@ function setupBasemapToggle() {
     onChange: onPick
   });
   msBasemapDev = buildSingleSelect(document.getElementById("dev-basemap-toggle"), {
+    options,
+    initial: "map",
+    onChange: onPick
+  });
+  msBasemapSales = buildSingleSelect(document.getElementById("sales-basemap-toggle"), {
     options,
     initial: "map",
     onChange: onPick
@@ -1312,11 +1640,252 @@ function applyDevelopmentPage() {
   if (msDevExclude) msDevExclude.refresh();
 }
 
+/* =========================================================
+   SALES PAGE
+   ========================================================= */
+function matchesSalesFacetFilters(s, f) {
+  if (s.type !== "Multifamily") return false; // Sales is Multifamily-only, locked
+  if (f.submarket.size && !f.submarket.has(s.submarket)) return false;
+  if (f.city.size && !f.city.has(s.city)) return false;
+  if (f.broker.size && !(f.broker.has(s.brokerSellerName) || f.broker.has(s.brokerBuyerName))) return false;
+  if (f.buyer.size && !f.buyer.has(s.buyerName)) return false;
+  if (f.seller.size && !f.seller.has(s.sellerName)) return false;
+  if (f.stage.size && !f.stage.has(s.stage)) return false;
+
+  if (f.closeMin || f.closeMax) {
+    if (!s.close) return false;
+    const closeYM = s.close.slice(0, 7);
+    if (f.closeMin && closeYM < f.closeMin) return false;
+    if (f.closeMax && closeYM > f.closeMax) return false;
+  }
+
+  if (f.yearMin !== null && (!s.yearBuilt || s.yearBuilt < f.yearMin)) return false;
+  if (f.yearMax !== null && (!s.yearBuilt || s.yearBuilt > f.yearMax)) return false;
+  if (f.unitsMin !== null && (!s.units || s.units < f.unitsMin)) return false;
+  if (f.unitsMax !== null && (!s.units || s.units > f.unitsMax)) return false;
+  if (f.ppuMin !== null && (!s.pricePerUnit || s.pricePerUnit < f.ppuMin)) return false;
+  if (f.ppuMax !== null && (!s.pricePerUnit || s.pricePerUnit > f.ppuMax)) return false;
+  if (f.priceMin !== null && (!s.price || s.price < f.priceMin)) return false;
+  if (f.priceMax !== null && (!s.price || s.price > f.priceMax)) return false;
+
+  return true;
+}
+
+function getSalesFilterState() {
+  return {
+    submarket: msSalesSubmarket ? msSalesSubmarket.getSelected() : new Set(),
+    city: msSalesCity ? msSalesCity.getSelected() : new Set(),
+    broker: msSalesBroker ? msSalesBroker.getSelected() : new Set(),
+    buyer: msSalesBuyer ? msSalesBuyer.getSelected() : new Set(),
+    seller: msSalesSeller ? msSalesSeller.getSelected() : new Set(),
+    stage: msSalesStage ? msSalesStage.getSelected() : new Set(),
+    closeMin: document.getElementById("sales-close-min").value || null,
+    closeMax: document.getElementById("sales-close-max").value || null,
+    yearMin: numOrNull("sales-year-min"),
+    yearMax: numOrNull("sales-year-max"),
+    unitsMin: numOrNull("sales-units-min"),
+    unitsMax: numOrNull("sales-units-max"),
+    ppuMin: numOrNull("sales-pricePerUnit-min"),
+    ppuMax: numOrNull("sales-pricePerUnit-max"),
+    priceMin: numOrNull("sales-price-min"),
+    priceMax: numOrNull("sales-price-max")
+  };
+}
+
+function salesBasePool() {
+  return allSales.filter((s) => s.type === "Multifamily");
+}
+
+function currentSalesFacetValues(field) {
+  return [...new Set(salesBasePool().map((s) => s[field]).filter(Boolean))].sort();
+}
+
+function currentSalesInView() {
+  const state = getSalesFilterState();
+  return allSales.filter((s) => matchesSalesFacetFilters(s, state));
+}
+
+function salesExcludeListNames() {
+  let inView = currentSalesInView().filter((s) => s.name);
+  if (mapBounds) inView = inView.filter((s) => mapBounds.contains([s.lng, s.lat]));
+  return [...new Set(inView.map((s) => `${s.name} (${formatCloseMY(s.close)})`))].sort();
+}
+
+function salesNameToIdMap() {
+  const map = {};
+  allSales.forEach((s) => {
+    if (!s.name) return;
+    const label = `${s.name} (${formatCloseMY(s.close)})`;
+    (map[label] = map[label] || []).push(s.id);
+  });
+  return map;
+}
+
+function idsForSalesLabels(labels) {
+  const map = salesNameToIdMap();
+  const ids = new Set();
+  labels.forEach((label) => (map[label] || []).forEach((id) => ids.add(id)));
+  return ids;
+}
+
+function currentSalesShown() {
+  const inView = currentSalesInView();
+  return inView.filter((s) => !excludedIdsSales.has(s.id));
+}
+
+function setupSalesFilterUI() {
+  msSalesSubmarket = buildMultiSelect(document.getElementById("sales-ms-submarket"), {
+    placeholder: "Submarket",
+    getValues: () => currentSalesFacetValues("submarket"),
+    onChange: applyCurrentPage
+  });
+  msSalesCity = buildMultiSelect(document.getElementById("sales-ms-city"), {
+    placeholder: "City",
+    getValues: () => currentSalesFacetValues("city"),
+    onChange: applyCurrentPage
+  });
+  msSalesBroker = buildMultiSelect(document.getElementById("sales-ms-broker"), {
+    placeholder: "Broker",
+    getValues: () =>
+      [...new Set(salesBasePool().flatMap((s) => [s.brokerSellerName, s.brokerBuyerName]).filter(Boolean))].sort(),
+    onChange: applyCurrentPage
+  });
+  msSalesBuyer = buildMultiSelect(document.getElementById("sales-ms-buyer"), {
+    placeholder: "Buyer",
+    getValues: () => currentSalesFacetValues("buyerName"),
+    onChange: applyCurrentPage
+  });
+  msSalesSeller = buildMultiSelect(document.getElementById("sales-ms-seller"), {
+    placeholder: "Seller",
+    getValues: () => currentSalesFacetValues("sellerName"),
+    onChange: applyCurrentPage
+  });
+  msSalesStage = buildMultiSelect(document.getElementById("sales-ms-stage"), {
+    placeholder: "Stage",
+    getValues: () => {
+      const present = new Set(salesBasePool().map((s) => s.stage));
+      return STAGE_ORDER.filter((s) => present.has(s));
+    },
+    getOptionStyle: (v) => {
+      const c = STAGE_COLORS[v];
+      return c ? `background:${c.bg};color:${c.color};` : "";
+    },
+    onChange: applyCurrentPage
+  });
+  msSalesExclude = buildMultiSelect(document.getElementById("sales-ms-exclude"), {
+    placeholder: "Exclude sales",
+    getValues: salesExcludeListNames,
+    getSelectedInitial: () => new Set(),
+    onChange: (selectedLabels) => {
+      excludedIdsSales = idsForSalesLabels(selectedLabels);
+      applyCurrentPage();
+    }
+  });
+
+  [
+    "sales-close-min", "sales-close-max", "sales-year-min", "sales-year-max",
+    "sales-units-min", "sales-units-max", "sales-pricePerUnit-min", "sales-pricePerUnit-max",
+    "sales-price-min", "sales-price-max"
+  ].forEach((id) => {
+    const el = document.getElementById(id);
+    el.addEventListener(el.type === "month" ? "change" : "input", applyCurrentPage);
+  });
+
+  document.getElementById("sales-reset-btn").addEventListener("click", () => {
+    [msSalesSubmarket, msSalesCity, msSalesBroker, msSalesBuyer, msSalesSeller, msSalesStage, msSalesExclude].forEach(
+      (ms) => ms.reset()
+    );
+    [
+      "sales-close-min", "sales-close-max", "sales-year-min", "sales-year-max",
+      "sales-units-min", "sales-units-max", "sales-pricePerUnit-min", "sales-pricePerUnit-max",
+      "sales-price-min", "sales-price-max"
+    ].forEach((id) => (document.getElementById(id).value = ""));
+    excludedIdsSales = new Set();
+    applyCurrentPage();
+  });
+}
+
+// Top Recent Buyers: last-24-months sales first, ranked by $ volume; if fewer
+// than 5 buyers have recent activity, backfill remaining slots with older
+// sales' all-time volume (excluding buyers already counted). Based on
+// whatever's currently shown (filtered + viewport-bounded).
+function computeTopBuyers(salesShown) {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 24);
+
+  const recentVolume = {};
+  const allTimeVolume = {};
+
+  salesShown.forEach((s) => {
+    if (!s.buyerName || !s.price) return;
+    allTimeVolume[s.buyerName] = (allTimeVolume[s.buyerName] || 0) + s.price;
+    if (s.close) {
+      const d = new Date(s.close);
+      if (!isNaN(d) && d >= cutoff) {
+        recentVolume[s.buyerName] = (recentVolume[s.buyerName] || 0) + s.price;
+      }
+    }
+  });
+
+  const result = Object.entries(recentVolume)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([name, vol]) => ({ name, vol }));
+
+  if (result.length < 5) {
+    const already = new Set(result.map((r) => r.name));
+    const backfill = Object.entries(allTimeVolume)
+      .filter(([name]) => !already.has(name))
+      .sort((a, b) => b[1] - a[1]);
+    for (const [name, vol] of backfill) {
+      if (result.length >= 5) break;
+      result.push({ name, vol });
+    }
+  }
+  return result;
+}
+
+function updateSalesStats(filtered) {
+  document.getElementById("sales-stat-count").textContent = filtered.length.toLocaleString();
+  const totalUnits = filtered.reduce((sum, s) => sum + (s.units || 0), 0);
+  document.getElementById("sales-stat-units").textContent = totalUnits.toLocaleString();
+
+  const avgOf = (field) => {
+    const known = filtered.filter((s) => s[field]);
+    return known.length ? known.reduce((sum, s) => sum + s[field], 0) / known.length : null;
+  };
+
+  const avgPrice = avgOf("price");
+  document.getElementById("sales-stat-price").textContent = avgPrice != null ? formatCurrencyShort(avgPrice) : "—";
+
+  const avgPPU = avgOf("pricePerUnit");
+  document.getElementById("sales-stat-priceperunit").textContent = avgPPU != null ? formatCurrencyShort(avgPPU) : "—";
+
+  const avgPPSF = avgOf("pricePerSF");
+  document.getElementById("sales-stat-pricepersf").textContent = avgPPSF != null ? `$${avgPPSF.toFixed(2)}` : "—";
+
+  const topBuyers = computeTopBuyers(filtered);
+  document.getElementById("sales-stat-buyers").innerHTML = topBuyers
+    .map(
+      (b) => `<div class="rank-row"><span>${escapeHTML(b.name)}</span><span class="n">${formatCurrencyShort(b.vol)}</span></div>`
+    )
+    .join("");
+}
+
+function applySalesPage() {
+  const shown = currentSalesShown();
+  map.getSource("sales").setData(toSalesGeoJSON(shown));
+  updateSalesStats(boundedToViewport(shown));
+  if (msSalesExclude) msSalesExclude.refresh();
+}
+
 // Single entry point used by moveend, page switching, and initial load —
 // dispatches to whichever page is currently active.
 function applyCurrentPage() {
   if (currentPage === "development") {
     applyDevelopmentPage();
+  } else if (currentPage === "sales") {
+    applySalesPage();
   } else {
     applyAll();
   }
@@ -1335,7 +1904,9 @@ document.getElementById("page-switcher").addEventListener("change", (e) => {
 
   document.getElementById("stats-properties").style.display = page === "properties" ? "block" : "none";
   document.getElementById("stats-development").style.display = page === "development" ? "block" : "none";
+  document.getElementById("stats-sales").style.display = page === "sales" ? "block" : "none";
 
+  updateLayerVisibilityForPage(page);
   applyCurrentPage();
 });
 </script>
