@@ -391,7 +391,7 @@
 </head>
 <body>
 
-<div id="version-badge">v12</div>
+<div id="version-badge">v13</div>
 
 <div id="app">
   <div id="sidebar">
@@ -1347,23 +1347,23 @@ function toGeoJSON(props) {
 function setupFilterUI() {
   msType = buildMultiSelect(document.getElementById("ms-type"), {
     placeholder: "Property type",
-    getValues: () => currentFacetValues("type"),
+    getValues: () => currentFacetValues("type", "type"),
     getSelectedInitial: () => new Set(["Multifamily"]),
     onChange: applyAll
   });
   msSubmarket = buildMultiSelect(document.getElementById("ms-submarket"), {
     placeholder: "Submarket",
-    getValues: () => currentFacetValues("submarket"),
+    getValues: () => currentFacetValues("submarket", "submarket"),
     onChange: applyAll
   });
   msCity = buildMultiSelect(document.getElementById("ms-city"), {
     placeholder: "City",
-    getValues: () => currentFacetValues("city"),
+    getValues: () => currentFacetValues("city", "city"),
     onChange: applyAll
   });
   msOwner = buildMultiSelect(document.getElementById("ms-owner"), {
     placeholder: "Owner",
-    getValues: () => currentFacetValues("ownerName"),
+    getValues: () => currentFacetValues("ownerName", "owner"),
     onChange: applyAll
   });
 
@@ -1392,8 +1392,15 @@ function setupFilterUI() {
   });
 }
 
-function currentFacetValues(field) {
-  return [...new Set(allProperties.map((p) => p[field]).filter(Boolean))].sort();
+// excludeKey lets a dropdown compute "what would still be available for ME"
+// by applying every other active filter except its own.
+function currentFacetValues(field, excludeKey) {
+  const state = getFilterState();
+  return [
+    ...new Set(
+      allProperties.filter((p) => matchesFacetFilters(p, state, excludeKey)).map((p) => p[field]).filter(Boolean)
+    )
+  ].sort();
 }
 
 function getFilterState() {
@@ -1417,11 +1424,11 @@ function numOrNullScaled(id, multiplier) {
   return v ? parseFloat(v) * multiplier : null;
 }
 
-function matchesFacetFilters(p, f) {
-  if (f.type.size && !f.type.has(p.type)) return false;
-  if (f.submarket.size && !f.submarket.has(p.submarket)) return false;
-  if (f.city.size && !f.city.has(p.city)) return false;
-  if (f.owner.size && !f.owner.has(p.ownerName)) return false;
+function matchesFacetFilters(p, f, excludeKey) {
+  if (excludeKey !== "type" && f.type.size && !f.type.has(p.type)) return false;
+  if (excludeKey !== "submarket" && f.submarket.size && !f.submarket.has(p.submarket)) return false;
+  if (excludeKey !== "city" && f.city.size && !f.city.has(p.city)) return false;
+  if (excludeKey !== "owner" && f.owner.size && !f.owner.has(p.ownerName)) return false;
   if (f.yearMin !== null && (!p.yearBuilt || p.yearBuilt < f.yearMin)) return false;
   if (f.yearMax !== null && (!p.yearBuilt || p.yearBuilt > f.yearMax)) return false;
   if (f.unitsMin !== null && (!p.units || p.units < f.unitsMin)) return false;
@@ -1486,7 +1493,7 @@ function applyAll() {
   const shown = currentShownProperties();
   map.getSource("properties").setData(toGeoJSON(shown));
   updateStats(boundedToViewport(shown));
-  if (msExclude) msExclude.refresh();
+  [msType, msSubmarket, msCity, msOwner, msExclude].forEach((ms) => ms && ms.refresh());
   map.setPaintProperty("unclustered-point", "circle-color", YEAR_COLOR_EXPR);
 }
 
@@ -1611,16 +1618,19 @@ function devBasePool() {
   return allProperties.filter((p) => p.yearBuilt && p.yearBuilt >= 2010 && p.type === "Multifamily");
 }
 
-function currentDevFacetValues(field) {
-  return [...new Set(devBasePool().map((p) => p[field]).filter(Boolean))].sort();
+function currentDevFacetValues(field, excludeKey) {
+  const state = getDevFilterState();
+  return [
+    ...new Set(devBasePool().filter((p) => matchesDevFacetFilters(p, state, excludeKey)).map((p) => p[field]).filter(Boolean))
+  ].sort();
 }
 
-function matchesDevFacetFilters(p, f) {
+function matchesDevFacetFilters(p, f, excludeKey) {
   if (!p.yearBuilt || p.yearBuilt < 2010) return false; // hard floor: Development = 2010+
   if (p.type !== "Multifamily") return false; // Development is Multifamily-only, no toggle
-  if (f.submarket.size && !f.submarket.has(p.submarket)) return false;
-  if (f.city.size && !f.city.has(p.city)) return false;
-  if (f.developer.size && !f.developer.has(p.developerName)) return false;
+  if (excludeKey !== "submarket" && f.submarket.size && !f.submarket.has(p.submarket)) return false;
+  if (excludeKey !== "city" && f.city.size && !f.city.has(p.city)) return false;
+  if (excludeKey !== "developer" && f.developer.size && !f.developer.has(p.developerName)) return false;
   if (f.yearMin !== null && p.yearBuilt < f.yearMin) return false;
   if (f.yearMax !== null && p.yearBuilt > f.yearMax) return false;
   if (f.unitsMin !== null && (!p.units || p.units < f.unitsMin)) return false;
@@ -1661,17 +1671,17 @@ function setupDevFilterUI() {
 
   msDevSubmarket = buildMultiSelect(document.getElementById("dev-ms-submarket"), {
     placeholder: "Submarket",
-    getValues: () => currentDevFacetValues("submarket"),
+    getValues: () => currentDevFacetValues("submarket", "submarket"),
     onChange: applyCurrentPage
   });
   msDevCity = buildMultiSelect(document.getElementById("dev-ms-city"), {
     placeholder: "City",
-    getValues: () => currentDevFacetValues("city"),
+    getValues: () => currentDevFacetValues("city", "city"),
     onChange: applyCurrentPage
   });
   msDevDeveloper = buildMultiSelect(document.getElementById("dev-ms-developer"), {
     placeholder: "Developer",
-    getValues: () => currentDevFacetValues("developerName"),
+    getValues: () => currentDevFacetValues("developerName", "developer"),
     onChange: applyCurrentPage
   });
   msDevExclude = buildMultiSelect(document.getElementById("dev-ms-exclude"), {
@@ -1787,20 +1797,21 @@ function applyDevelopmentPage() {
   const viewportShown = boundedToViewport(shown);
   updateDevStats(viewportShown);
   applyDevelopmentColorScheme();
-  if (msDevExclude) msDevExclude.refresh();
+  [msDevSubmarket, msDevCity, msDevDeveloper, msDevExclude].forEach((ms) => ms && ms.refresh());
 }
 
 /* =========================================================
    SALES PAGE
    ========================================================= */
-function matchesSalesFacetFilters(s, f) {
+function matchesSalesFacetFilters(s, f, excludeKey) {
   if (s.type !== "Multifamily") return false; // Sales is Multifamily-only, locked
-  if (f.submarket.size && !f.submarket.has(s.submarket)) return false;
-  if (f.city.size && !f.city.has(s.city)) return false;
-  if (f.broker.size && !(f.broker.has(s.brokerSellerName) || f.broker.has(s.brokerBuyerName))) return false;
-  if (f.buyer.size && !f.buyer.has(s.buyerName)) return false;
-  if (f.seller.size && !f.seller.has(s.sellerName)) return false;
-  if (f.stage.size && !f.stage.has(s.stage)) return false;
+  if (excludeKey !== "submarket" && f.submarket.size && !f.submarket.has(s.submarket)) return false;
+  if (excludeKey !== "city" && f.city.size && !f.city.has(s.city)) return false;
+  if (excludeKey !== "broker" && f.broker.size && !(f.broker.has(s.brokerSellerName) || f.broker.has(s.brokerBuyerName)))
+    return false;
+  if (excludeKey !== "buyer" && f.buyer.size && !f.buyer.has(s.buyerName)) return false;
+  if (excludeKey !== "seller" && f.seller.size && !f.seller.has(s.sellerName)) return false;
+  if (excludeKey !== "stage" && f.stage.size && !f.stage.has(s.stage)) return false;
 
   if (f.closeMin || f.closeMax) {
     if (!s.close) return false;
@@ -1869,8 +1880,11 @@ function salesBasePool() {
   return allSales.filter((s) => s.type === "Multifamily");
 }
 
-function currentSalesFacetValues(field) {
-  return [...new Set(salesBasePool().map((s) => s[field]).filter(Boolean))].sort();
+function currentSalesFacetValues(field, excludeKey) {
+  const state = getSalesFilterState();
+  return [
+    ...new Set(salesBasePool().filter((s) => matchesSalesFacetFilters(s, state, excludeKey)).map((s) => s[field]).filter(Boolean))
+  ].sort();
 }
 
 function currentSalesInView() {
@@ -1911,19 +1925,21 @@ function setupSalesFilterUI() {
 
   msSalesSubmarket = buildMultiSelect(document.getElementById("sales-ms-submarket"), {
     placeholder: "Submarket",
-    getValues: () => currentSalesFacetValues("submarket"),
+    getValues: () => currentSalesFacetValues("submarket", "submarket"),
     onChange: applyCurrentPage
   });
   msSalesCity = buildMultiSelect(document.getElementById("sales-ms-city"), {
     placeholder: "City",
-    getValues: () => currentSalesFacetValues("city"),
+    getValues: () => currentSalesFacetValues("city", "city"),
     onChange: applyCurrentPage
   });
   msSalesBroker = buildMultiSelect(document.getElementById("sales-ms-broker"), {
     placeholder: "Broker",
     getValues: () => {
+      const state = getSalesFilterState();
+      const pool = salesBasePool().filter((s) => matchesSalesFacetFilters(s, state, "broker"));
       const salesByBroker = {};
-      salesBasePool().forEach((s) => {
+      pool.forEach((s) => {
         const brokers = new Set([s.brokerSellerName, s.brokerBuyerName].filter(Boolean));
         brokers.forEach((name) => (salesByBroker[name] = (salesByBroker[name] || 0) + 1));
       });
@@ -1935,18 +1951,19 @@ function setupSalesFilterUI() {
   });
   msSalesBuyer = buildMultiSelect(document.getElementById("sales-ms-buyer"), {
     placeholder: "Buyer",
-    getValues: () => currentSalesFacetValues("buyerName"),
+    getValues: () => currentSalesFacetValues("buyerName", "buyer"),
     onChange: applyCurrentPage
   });
   msSalesSeller = buildMultiSelect(document.getElementById("sales-ms-seller"), {
     placeholder: "Seller",
-    getValues: () => currentSalesFacetValues("sellerName"),
+    getValues: () => currentSalesFacetValues("sellerName", "seller"),
     onChange: applyCurrentPage
   });
   msSalesStage = buildMultiSelect(document.getElementById("sales-ms-stage"), {
     placeholder: "Stage",
     getValues: () => {
-      const present = new Set(salesBasePool().map((s) => s.stage));
+      const state = getSalesFilterState();
+      const present = new Set(salesBasePool().filter((s) => matchesSalesFacetFilters(s, state, "stage")).map((s) => s.stage));
       return STAGE_ORDER.filter((s) => present.has(s));
     },
     getOptionStyle: (v) => {
@@ -2122,7 +2139,9 @@ function applySalesPage() {
   const shown = currentSalesShown();
   map.getSource("sales").setData(toSalesGeoJSON(shown));
   updateSalesStats(boundedToViewport(shown));
-  if (msSalesExclude) msSalesExclude.refresh();
+  [msSalesSubmarket, msSalesCity, msSalesBroker, msSalesBuyer, msSalesSeller, msSalesStage, msSalesExclude].forEach(
+    (ms) => ms && ms.refresh()
+  );
 }
 
 // Single entry point used by moveend, page switching, and initial load —
