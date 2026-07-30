@@ -391,7 +391,7 @@
 </head>
 <body>
 
-<div id="version-badge">v14</div>
+<div id="version-badge">v15</div>
 
 <div id="app">
   <div id="sidebar">
@@ -409,6 +409,7 @@
         <div id="ms-type" class="ms-slot" data-field="type" data-placeholder="Property type"></div>
         <div id="ms-submarket" class="ms-slot" data-field="submarket" data-placeholder="Submarket"></div>
         <div id="ms-city" class="ms-slot" data-field="city" data-placeholder="City"></div>
+        <div id="ms-property" class="ms-slot" data-field="name" data-placeholder="Property"></div>
 
         <div class="range-row">
           <input type="number" id="year-min" placeholder="Year Built" />
@@ -434,6 +435,7 @@
       <div class="filter-stack">
         <div id="dev-ms-submarket" class="ms-slot" data-field="submarket" data-placeholder="Submarket"></div>
         <div id="dev-ms-city" class="ms-slot" data-field="city" data-placeholder="City"></div>
+        <div id="dev-ms-property" class="ms-slot" data-field="name" data-placeholder="Property"></div>
 
         <div class="range-row">
           <input type="number" id="dev-year-min" placeholder="Year Built" />
@@ -462,6 +464,7 @@
       <div class="filter-stack">
         <div id="sales-ms-submarket" class="ms-slot" data-placeholder="Submarket"></div>
         <div id="sales-ms-city" class="ms-slot" data-placeholder="City"></div>
+        <div id="sales-ms-property" class="ms-slot" data-placeholder="Property"></div>
 
         <div class="range-row">
           <select id="sales-close-min" class="filter-select"></select>
@@ -623,8 +626,8 @@ let excludedIdsSales = new Set(); // Sales page: its own separate exclusion set
 const DEFAULT_EXCLUDED_OWNER = "Condos / Coops";
 
 let currentPage = "properties";
-let msDevSubmarket, msDevCity, msDevDeveloper, msDevExclude;
-let msSalesSubmarket, msSalesCity, msSalesBroker, msSalesBuyer, msSalesSeller, msSalesStage, msSalesExclude;
+let msDevSubmarket, msDevCity, msDevProperty, msDevDeveloper, msDevExclude;
+let msSalesSubmarket, msSalesCity, msSalesProperty, msSalesBroker, msSalesBuyer, msSalesSeller, msSalesStage, msSalesExclude;
 
 const RAINBOW7 = ["#c0392b", "#e08e4f", "#d4b106", "#1f8a4c", "#1c9e8e", "#1c5fa8", "#6b3fa0"];
 
@@ -899,7 +902,7 @@ function normalizeUrl(url) {
 /* =========================================================
    MAP
    ========================================================= */
-let map, msType, msSubmarket, msCity, msOwner, msExclude;
+let map, msType, msSubmarket, msCity, msProperty, msOwner, msExclude;
 let mapBounds = null;
 
 const RASTER_BASEMAPS = {
@@ -1361,6 +1364,11 @@ function setupFilterUI() {
     getValues: () => currentFacetValues("city", "city"),
     onChange: applyAll
   });
+  msProperty = buildMultiSelect(document.getElementById("ms-property"), {
+    placeholder: "Property",
+    getValues: () => currentFacetValues("name", "property"),
+    onChange: applyAll
+  });
   msOwner = buildMultiSelect(document.getElementById("ms-owner"), {
     placeholder: "Owner",
     getValues: () => currentFacetValues("ownerName", "owner"),
@@ -1384,7 +1392,7 @@ function setupFilterUI() {
 
   document.getElementById("reset-btn").addEventListener("click", () => {
     msType.setSelected(new Set(["Multifamily"]));
-    [msSubmarket, msCity, msOwner].forEach((ms) => ms.reset());
+    [msSubmarket, msCity, msProperty, msOwner].forEach((ms) => ms.reset());
     ["year-min", "year-max", "units-min", "units-max"].forEach((id) => (document.getElementById(id).value = ""));
     msExclude.setSelected(defaultExcludedNames());
     excludedIds = idsForNames(msExclude.getSelected());
@@ -1408,6 +1416,7 @@ function getFilterState() {
     type: msType ? msType.getSelected() : new Set(),
     submarket: msSubmarket ? msSubmarket.getSelected() : new Set(),
     city: msCity ? msCity.getSelected() : new Set(),
+    property: msProperty ? msProperty.getSelected() : new Set(),
     owner: msOwner ? msOwner.getSelected() : new Set(),
     yearMin: numOrNull("year-min"),
     yearMax: numOrNull("year-max"),
@@ -1428,6 +1437,7 @@ function matchesFacetFilters(p, f, excludeKey) {
   if (excludeKey !== "type" && f.type.size && !f.type.has(p.type)) return false;
   if (excludeKey !== "submarket" && f.submarket.size && !f.submarket.has(p.submarket)) return false;
   if (excludeKey !== "city" && f.city.size && !f.city.has(p.city)) return false;
+  if (excludeKey !== "property" && f.property.size && !f.property.has(p.name)) return false;
   if (excludeKey !== "owner" && f.owner.size && !f.owner.has(p.ownerName)) return false;
   if (f.yearMin !== null && (!p.yearBuilt || p.yearBuilt < f.yearMin)) return false;
   if (f.yearMax !== null && (!p.yearBuilt || p.yearBuilt > f.yearMax)) return false;
@@ -1493,7 +1503,7 @@ function applyAll() {
   const shown = currentShownProperties();
   map.getSource("properties").setData(toGeoJSON(shown));
   updateStats(boundedToViewport(shown));
-  [msType, msSubmarket, msCity, msOwner, msExclude].forEach((ms) => ms && ms.refresh());
+  [msType, msSubmarket, msCity, msProperty, msOwner, msExclude].forEach((ms) => ms && ms.refresh());
   map.setPaintProperty("unclustered-point", "circle-color", YEAR_COLOR_EXPR);
 }
 
@@ -1630,6 +1640,7 @@ function matchesDevFacetFilters(p, f, excludeKey) {
   if (p.type !== "Multifamily") return false; // Development is Multifamily-only, no toggle
   if (excludeKey !== "submarket" && f.submarket.size && !f.submarket.has(p.submarket)) return false;
   if (excludeKey !== "city" && f.city.size && !f.city.has(p.city)) return false;
+  if (excludeKey !== "property" && f.property.size && !f.property.has(p.name)) return false;
   if (excludeKey !== "developer" && f.developer.size && !f.developer.has(p.developerName)) return false;
   if (f.yearMin !== null && p.yearBuilt < f.yearMin) return false;
   if (f.yearMax !== null && p.yearBuilt > f.yearMax) return false;
@@ -1642,6 +1653,7 @@ function getDevFilterState() {
   return {
     submarket: msDevSubmarket ? msDevSubmarket.getSelected() : new Set(),
     city: msDevCity ? msDevCity.getSelected() : new Set(),
+    property: msDevProperty ? msDevProperty.getSelected() : new Set(),
     developer: msDevDeveloper ? msDevDeveloper.getSelected() : new Set(),
     yearMin: numOrNull("dev-year-min"),
     yearMax: numOrNull("dev-year-max"),
@@ -1679,6 +1691,11 @@ function setupDevFilterUI() {
     getValues: () => currentDevFacetValues("city", "city"),
     onChange: applyCurrentPage
   });
+  msDevProperty = buildMultiSelect(document.getElementById("dev-ms-property"), {
+    placeholder: "Property",
+    getValues: () => currentDevFacetValues("name", "property"),
+    onChange: applyCurrentPage
+  });
   msDevDeveloper = buildMultiSelect(document.getElementById("dev-ms-developer"), {
     placeholder: "Developer",
     getValues: () => currentDevFacetValues("developerName", "developer"),
@@ -1699,7 +1716,7 @@ function setupDevFilterUI() {
   );
 
   document.getElementById("dev-reset-btn").addEventListener("click", () => {
-    [msDevSubmarket, msDevCity, msDevDeveloper, msDevExclude].forEach((ms) => ms.reset());
+    [msDevSubmarket, msDevCity, msDevProperty, msDevDeveloper, msDevExclude].forEach((ms) => ms.reset());
     ["dev-year-min", "dev-year-max", "dev-units-min", "dev-units-max"].forEach(
       (id) => (document.getElementById(id).value = "")
     );
@@ -1797,7 +1814,7 @@ function applyDevelopmentPage() {
   const viewportShown = boundedToViewport(shown);
   updateDevStats(viewportShown);
   applyDevelopmentColorScheme();
-  [msDevSubmarket, msDevCity, msDevDeveloper, msDevExclude].forEach((ms) => ms && ms.refresh());
+  [msDevSubmarket, msDevCity, msDevProperty, msDevDeveloper, msDevExclude].forEach((ms) => ms && ms.refresh());
 }
 
 /* =========================================================
@@ -1807,6 +1824,7 @@ function matchesSalesFacetFilters(s, f, excludeKey) {
   if (s.type !== "Multifamily") return false; // Sales is Multifamily-only, locked
   if (excludeKey !== "submarket" && f.submarket.size && !f.submarket.has(s.submarket)) return false;
   if (excludeKey !== "city" && f.city.size && !f.city.has(s.city)) return false;
+  if (excludeKey !== "property" && f.property.size && !f.property.has(s.name)) return false;
   if (excludeKey !== "broker" && f.broker.size && !(f.broker.has(s.brokerSellerName) || f.broker.has(s.brokerBuyerName)))
     return false;
   if (excludeKey !== "buyer" && f.buyer.size && !f.buyer.has(s.buyerName)) return false;
@@ -1859,6 +1877,7 @@ function getSalesFilterState() {
   return {
     submarket: msSalesSubmarket ? msSalesSubmarket.getSelected() : new Set(),
     city: msSalesCity ? msSalesCity.getSelected() : new Set(),
+    property: msSalesProperty ? msSalesProperty.getSelected() : new Set(),
     broker: msSalesBroker ? msSalesBroker.getSelected() : new Set(),
     buyer: msSalesBuyer ? msSalesBuyer.getSelected() : new Set(),
     seller: msSalesSeller ? msSalesSeller.getSelected() : new Set(),
@@ -1933,6 +1952,11 @@ function setupSalesFilterUI() {
     getValues: () => currentSalesFacetValues("city", "city"),
     onChange: applyCurrentPage
   });
+  msSalesProperty = buildMultiSelect(document.getElementById("sales-ms-property"), {
+    placeholder: "Property",
+    getValues: () => currentSalesFacetValues("name", "property"),
+    onChange: applyCurrentPage
+  });
   msSalesBroker = buildMultiSelect(document.getElementById("sales-ms-broker"), {
     placeholder: "Broker",
     getValues: () => {
@@ -1996,7 +2020,7 @@ function setupSalesFilterUI() {
   });
 
   document.getElementById("sales-reset-btn").addEventListener("click", () => {
-    [msSalesSubmarket, msSalesCity, msSalesBroker, msSalesBuyer, msSalesSeller, msSalesStage, msSalesExclude].forEach(
+    [msSalesSubmarket, msSalesCity, msSalesProperty, msSalesBroker, msSalesBuyer, msSalesSeller, msSalesStage, msSalesExclude].forEach(
       (ms) => ms.reset()
     );
     [
@@ -2140,7 +2164,7 @@ function applySalesPage() {
   const shown = currentSalesShown();
   map.getSource("sales").setData(toSalesGeoJSON(shown));
   updateSalesStats(boundedToViewport(shown));
-  [msSalesSubmarket, msSalesCity, msSalesBroker, msSalesBuyer, msSalesSeller, msSalesStage, msSalesExclude].forEach(
+  [msSalesSubmarket, msSalesCity, msSalesProperty, msSalesBroker, msSalesBuyer, msSalesSeller, msSalesStage, msSalesExclude].forEach(
     (ms) => ms && ms.refresh()
   );
 }
