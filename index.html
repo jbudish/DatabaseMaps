@@ -120,6 +120,43 @@
   }
   .filter-select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
 
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fff;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggle-row.active { border-color: var(--gold); color: var(--navy); font-weight: 700; }
+  .toggle-switch {
+    width: 32px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--line);
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .toggle-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    transition: left 0.15s;
+  }
+  .toggle-row.active .toggle-switch { background: var(--navy); }
+  .toggle-row.active .toggle-switch::after { left: 16px; }
+
   /* ---------- MULTI-SELECT WITH SEARCH (shared by filters + exclude list) ---------- */
   .ms { position: relative; }
   .ms-button {
@@ -391,7 +428,7 @@
 </head>
 <body>
 
-<div id="version-badge">v15</div>
+<div id="version-badge">v16</div>
 
 <div id="app">
   <div id="sidebar">
@@ -426,6 +463,10 @@
         <div id="ms-owner" class="ms-slot" data-field="ownerName" data-placeholder="Owner"></div>
         <div id="ms-exclude" class="ms-slot"></div>
         <div id="basemap-toggle" class="ms-slot"></div>
+        <div id="cities-toggle-properties" class="toggle-row">
+          <span>City Outlines</span>
+          <span class="toggle-switch"></span>
+        </div>
       </div>
 
       <button id="reset-btn" class="page-reset-btn">Reset</button>
@@ -452,6 +493,10 @@
         <div id="dev-ms-developer" class="ms-slot" data-field="developerName" data-placeholder="Developer"></div>
         <div id="dev-ms-exclude" class="ms-slot"></div>
         <div id="dev-basemap-toggle" class="ms-slot"></div>
+        <div id="cities-toggle-development" class="toggle-row">
+          <span>City Outlines</span>
+          <span class="toggle-switch"></span>
+        </div>
       </div>
 
       <div class="filter-section-title">Rent PSF</div>
@@ -502,6 +547,10 @@
         <div id="sales-ms-stage" class="ms-slot" data-placeholder="Stage"></div>
         <div id="sales-ms-exclude" class="ms-slot"></div>
         <div id="sales-basemap-toggle" class="ms-slot"></div>
+        <div id="cities-toggle-sales" class="toggle-row">
+          <span>City Outlines</span>
+          <span class="toggle-switch"></span>
+        </div>
       </div>
 
       <div class="filter-section-title">$ / Unit</div>
@@ -689,11 +738,15 @@ function cleanEntity(name) {
 /* =========================================================
    LOAD
    ========================================================= */
+let citiesGeoJSON = null;
+
 Promise.all([
   fetch("data/properties.json").then((r) => r.json()),
   fetch("data/companies.json").then((r) => r.json()),
-  fetch("data/sales.json").then((r) => r.json())
-]).then(([props, companies, sales]) => {
+  fetch("data/sales.json").then((r) => r.json()),
+  fetch("data/cities.geojson").then((r) => (r.ok ? r.json() : null)).catch(() => null)
+]).then(([props, companies, sales, cities]) => {
+  citiesGeoJSON = cities;
   companyById = Object.fromEntries(companies.map((c) => [c.id, c.name]));
   allProperties = props.map((p) => ({
     ...p,
@@ -970,6 +1023,7 @@ function initMap() {
     setBasemap("map");
     addPropertyLayers();
     addSalesLayers();
+    addCitiesLayer();
 
     map.on("click", "clusters", (e) => {
       const f = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
@@ -1084,6 +1138,7 @@ function initMap() {
     setupDevFilterUI();
     setupSalesFilterUI();
     setupBasemapToggle();
+    setupCitiesToggle();
     updateLayerVisibilityForPage("properties");
     mapBounds = map.getBounds();
     applyCurrentPage();
@@ -1229,6 +1284,37 @@ function updateLayerVisibilityForPage(page) {
   });
 }
 
+// Adds the city outlines source + layer, if data/cities.geojson was found.
+// Inserted before "clusters" so it sits above the basemap but below every
+// property/sales dot layer, and starts hidden (off by default).
+function addCitiesLayer() {
+  if (!citiesGeoJSON) return;
+
+  map.addSource("cities", { type: "geojson", data: citiesGeoJSON });
+
+  const beforeId = map.getLayer("clusters") ? "clusters" : undefined;
+  map.addLayer(
+    {
+      id: "cities-outline",
+      type: "line",
+      source: "cities",
+      layout: { visibility: "none" },
+      paint: {
+        "line-color": "#1a3a5c",
+        "line-width": 1.5,
+        "line-opacity": 0.7
+      }
+    },
+    beforeId
+  );
+}
+
+function setCitiesVisible(visible) {
+  if (!map.getLayer("cities-outline")) return;
+  map.setLayoutProperty("cities-outline", "visibility", visible ? "visible" : "none");
+}
+
+
 // Adds the properties source + layers once, on initial load only.
 function addPropertyLayers() {
   map.addSource("properties", {
@@ -1313,6 +1399,25 @@ function setupBasemapToggle() {
     initial: "map",
     onChange: onPick
   });
+}
+
+function setupCitiesToggle() {
+  const ids = ["cities-toggle-properties", "cities-toggle-development", "cities-toggle-sales"];
+  let visible = false;
+
+  function render() {
+    ids.forEach((id) => document.getElementById(id).classList.toggle("active", visible));
+    setCitiesVisible(visible);
+  }
+
+  ids.forEach((id) => {
+    document.getElementById(id).addEventListener("click", () => {
+      visible = !visible;
+      render();
+    });
+  });
+
+  render();
 }
 
 function toGeoJSON(props) {
