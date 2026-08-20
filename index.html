@@ -428,7 +428,7 @@
 </head>
 <body>
 
-<div id="version-badge">v16</div>
+<div id="version-badge">v17</div>
 
 <div id="app">
   <div id="sidebar">
@@ -467,6 +467,7 @@
           <span>City Outlines</span>
           <span class="toggle-switch"></span>
         </div>
+        <div id="boundary-toggle-properties" class="ms-slot"></div>
       </div>
 
       <button id="reset-btn" class="page-reset-btn">Reset</button>
@@ -497,6 +498,7 @@
           <span>City Outlines</span>
           <span class="toggle-switch"></span>
         </div>
+        <div id="boundary-toggle-development" class="ms-slot"></div>
       </div>
 
       <div class="filter-section-title">Rent PSF</div>
@@ -551,6 +553,7 @@
           <span>City Outlines</span>
           <span class="toggle-switch"></span>
         </div>
+        <div id="boundary-toggle-sales" class="ms-slot"></div>
       </div>
 
       <div class="filter-section-title">$ / Unit</div>
@@ -739,14 +742,23 @@ function cleanEntity(name) {
    LOAD
    ========================================================= */
 let citiesGeoJSON = null;
+let countiesGeoJSON = null;
+let submarketsGeoJSON = null;
+let neighborhoodsGeoJSON = null;
 
 Promise.all([
   fetch("data/properties.json").then((r) => r.json()),
   fetch("data/companies.json").then((r) => r.json()),
   fetch("data/sales.json").then((r) => r.json()),
-  fetch("data/cities.geojson").then((r) => (r.ok ? r.json() : null)).catch(() => null)
-]).then(([props, companies, sales, cities]) => {
+  fetch("data/cities.geojson").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+  fetch("data/counties.geojson").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+  fetch("data/submarkets.geojson").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+  fetch("data/neighborhoods.geojson").then((r) => (r.ok ? r.json() : null)).catch(() => null)
+]).then(([props, companies, sales, cities, counties, submarkets, neighborhoods]) => {
   citiesGeoJSON = cities;
+  countiesGeoJSON = counties;
+  submarketsGeoJSON = submarkets;
+  neighborhoodsGeoJSON = neighborhoods;
   companyById = Object.fromEntries(companies.map((c) => [c.id, c.name]));
   allProperties = props.map((p) => ({
     ...p,
@@ -1024,6 +1036,7 @@ function initMap() {
     addPropertyLayers();
     addSalesLayers();
     addCitiesLayer();
+    addBoundaryLayers();
 
     map.on("click", "clusters", (e) => {
       const f = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
@@ -1139,6 +1152,7 @@ function initMap() {
     setupSalesFilterUI();
     setupBasemapToggle();
     setupCitiesToggle();
+    setupBoundaryToggle();
     updateLayerVisibilityForPage("properties");
     mapBounds = map.getBounds();
     applyCurrentPage();
@@ -1314,6 +1328,45 @@ function setCitiesVisible(visible) {
   map.setLayoutProperty("cities-outline", "visibility", visible ? "visible" : "none");
 }
 
+// The three boundary overlays (Counties/Submarkets/Neighborhoods) are a
+// single-select group — only one shows at a time, unlike the independent
+// City Outlines toggle.
+const BOUNDARY_LAYERS = {
+  counties: { data: () => countiesGeoJSON, color: "#6b7688" },
+  submarkets: { data: () => submarketsGeoJSON, color: "#c9962e" },
+  neighborhoods: { data: () => neighborhoodsGeoJSON, color: "#1c9e8e" }
+};
+
+function addBoundaryLayers() {
+  const beforeId = map.getLayer("clusters") ? "clusters" : undefined;
+  Object.entries(BOUNDARY_LAYERS).forEach(([key, cfg]) => {
+    const data = cfg.data();
+    if (!data) return;
+    map.addSource(key, { type: "geojson", data });
+    map.addLayer(
+      {
+        id: `${key}-outline`,
+        type: "line",
+        source: key,
+        layout: { visibility: "none" },
+        paint: {
+          "line-color": cfg.color,
+          "line-width": 1.5,
+          "line-opacity": 0.8
+        }
+      },
+      beforeId
+    );
+  });
+}
+
+function setBoundaryLayer(key) {
+  Object.keys(BOUNDARY_LAYERS).forEach((k) => {
+    if (!map.getLayer(`${k}-outline`)) return;
+    map.setLayoutProperty(`${k}-outline`, "visibility", k === key ? "visible" : "none");
+  });
+}
+
 
 // Adds the properties source + layers once, on initial load only.
 function addPropertyLayers() {
@@ -1418,6 +1471,40 @@ function setupCitiesToggle() {
   });
 
   render();
+}
+
+let msBoundaryProperties, msBoundaryDev, msBoundarySales;
+
+function setupBoundaryToggle() {
+  const options = [
+    { value: "none", label: "None" },
+    { value: "counties", label: "Counties" },
+    { value: "submarkets", label: "Multifamily Submarkets" },
+    { value: "neighborhoods", label: "St. Paul Neighborhoods" }
+  ];
+
+  const onPick = (key) => {
+    setBoundaryLayer(key === "none" ? null : key);
+    if (msBoundaryProperties) msBoundaryProperties.setValue(key);
+    if (msBoundaryDev) msBoundaryDev.setValue(key);
+    if (msBoundarySales) msBoundarySales.setValue(key);
+  };
+
+  msBoundaryProperties = buildSingleSelect(document.getElementById("boundary-toggle-properties"), {
+    options,
+    initial: "none",
+    onChange: onPick
+  });
+  msBoundaryDev = buildSingleSelect(document.getElementById("boundary-toggle-development"), {
+    options,
+    initial: "none",
+    onChange: onPick
+  });
+  msBoundarySales = buildSingleSelect(document.getElementById("boundary-toggle-sales"), {
+    options,
+    initial: "none",
+    onChange: onPick
+  });
 }
 
 function toGeoJSON(props) {
