@@ -428,7 +428,7 @@
 </head>
 <body>
 
-<div id="version-badge">v17</div>
+<div id="version-badge">v18</div>
 
 <div id="app">
   <div id="sidebar">
@@ -463,10 +463,6 @@
         <div id="ms-owner" class="ms-slot" data-field="ownerName" data-placeholder="Owner"></div>
         <div id="ms-exclude" class="ms-slot"></div>
         <div id="basemap-toggle" class="ms-slot"></div>
-        <div id="cities-toggle-properties" class="toggle-row">
-          <span>City Outlines</span>
-          <span class="toggle-switch"></span>
-        </div>
         <div id="boundary-toggle-properties" class="ms-slot"></div>
       </div>
 
@@ -494,10 +490,6 @@
         <div id="dev-ms-developer" class="ms-slot" data-field="developerName" data-placeholder="Developer"></div>
         <div id="dev-ms-exclude" class="ms-slot"></div>
         <div id="dev-basemap-toggle" class="ms-slot"></div>
-        <div id="cities-toggle-development" class="toggle-row">
-          <span>City Outlines</span>
-          <span class="toggle-switch"></span>
-        </div>
         <div id="boundary-toggle-development" class="ms-slot"></div>
       </div>
 
@@ -549,10 +541,6 @@
         <div id="sales-ms-stage" class="ms-slot" data-placeholder="Stage"></div>
         <div id="sales-ms-exclude" class="ms-slot"></div>
         <div id="sales-basemap-toggle" class="ms-slot"></div>
-        <div id="cities-toggle-sales" class="toggle-row">
-          <span>City Outlines</span>
-          <span class="toggle-switch"></span>
-        </div>
         <div id="boundary-toggle-sales" class="ms-slot"></div>
       </div>
 
@@ -1035,7 +1023,6 @@ function initMap() {
     setBasemap("map");
     addPropertyLayers();
     addSalesLayers();
-    addCitiesLayer();
     addBoundaryLayers();
 
     map.on("click", "clusters", (e) => {
@@ -1151,7 +1138,6 @@ function initMap() {
     setupDevFilterUI();
     setupSalesFilterUI();
     setupBasemapToggle();
-    setupCitiesToggle();
     setupBoundaryToggle();
     updateLayerVisibilityForPage("properties");
     mapBounds = map.getBounds();
@@ -1166,6 +1152,13 @@ function initMap() {
 
 // Swaps just the raster basemap layer, always keeping it beneath the property
 // layers if they already exist. Never touches the properties source/layers.
+// Captured once, the first time "clusters" is added — every subsequent basemap
+// switch re-inserts the raster layer at this exact fixed spot, so it always
+// stays at the bottom of the stack. Previously we recalculated "before clusters"
+// on every switch, which pushed the new basemap layer above overlays (city/county/
+// etc. outlines) that had also been inserted "before clusters" earlier — hiding them.
+let bottomAnchorLayerId = null;
+
 function setBasemap(key) {
   if (map.getLayer("basemap-layer")) map.removeLayer("basemap-layer");
   if (map.getSource("basemap-src")) map.removeSource("basemap-src");
@@ -1178,7 +1171,7 @@ function setBasemap(key) {
     attribution: cfg.attribution
   });
 
-  const beforeId = map.getLayer("clusters") ? "clusters" : undefined;
+  const beforeId = bottomAnchorLayerId || (map.getLayer("clusters") ? "clusters" : undefined);
   map.addLayer({ id: "basemap-layer", type: "raster", source: "basemap-src" }, beforeId);
 }
 
@@ -1301,44 +1294,19 @@ function updateLayerVisibilityForPage(page) {
 // Adds the city outlines source + layer, if data/cities.geojson was found.
 // Inserted before "clusters" so it sits above the basemap but below every
 // property/sales dot layer, and starts hidden (off by default).
-function addCitiesLayer() {
-  if (!citiesGeoJSON) return;
-
-  map.addSource("cities", { type: "geojson", data: citiesGeoJSON });
-
-  const beforeId = map.getLayer("clusters") ? "clusters" : undefined;
-  map.addLayer(
-    {
-      id: "cities-outline",
-      type: "line",
-      source: "cities",
-      layout: { visibility: "none" },
-      paint: {
-        "line-color": "#1a3a5c",
-        "line-width": 1.5,
-        "line-opacity": 0.7
-      }
-    },
-    beforeId
-  );
-}
-
-function setCitiesVisible(visible) {
-  if (!map.getLayer("cities-outline")) return;
-  map.setLayoutProperty("cities-outline", "visibility", visible ? "visible" : "none");
-}
-
-// The three boundary overlays (Counties/Submarkets/Neighborhoods) are a
-// single-select group — only one shows at a time, unlike the independent
-// City Outlines toggle.
+// All four boundary overlays, now a single multi-select group (any combination
+// can be shown at once). Each gets an outline layer plus a label layer showing
+// the feature name at its center (MapLibre's default point-placement for
+// polygon geometries), instead of relying on click-to-inspect.
 const BOUNDARY_LAYERS = {
-  counties: { data: () => countiesGeoJSON, color: "#6b7688" },
-  submarkets: { data: () => submarketsGeoJSON, color: "#c9962e" },
-  neighborhoods: { data: () => neighborhoodsGeoJSON, color: "#1c9e8e" }
+  cities: { data: () => citiesGeoJSON, color: "#1a3a5c", label: "Cities" },
+  counties: { data: () => countiesGeoJSON, color: "#6b7688", label: "Counties" },
+  submarkets: { data: () => submarketsGeoJSON, color: "#c9962e", label: "Multifamily Submarkets" },
+  neighborhoods: { data: () => neighborhoodsGeoJSON, color: "#1c9e8e", label: "St. Paul Neighborhoods" }
 };
 
 function addBoundaryLayers() {
-  const beforeId = map.getLayer("clusters") ? "clusters" : undefined;
+  const beforeId = bottomAnchorLayerId || (map.getLayer("clusters") ? "clusters" : undefined);
   Object.entries(BOUNDARY_LAYERS).forEach(([key, cfg]) => {
     const data = cfg.data();
     if (!data) return;
@@ -1357,13 +1325,34 @@ function addBoundaryLayers() {
       },
       beforeId
     );
+    map.addLayer(
+      {
+        id: `${key}-label`,
+        type: "symbol",
+        source: key,
+        layout: {
+          visibility: "none",
+          "text-field": ["get", "name"],
+          "text-font": ["Klokantech Noto Sans Bold"],
+          "text-size": 11
+        },
+        paint: {
+          "text-color": cfg.color,
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.3
+        }
+      },
+      beforeId
+    );
   });
 }
 
-function setBoundaryLayer(key) {
+function setBoundaryLayers(selectedKeys) {
   Object.keys(BOUNDARY_LAYERS).forEach((k) => {
-    if (!map.getLayer(`${k}-outline`)) return;
-    map.setLayoutProperty(`${k}-outline`, "visibility", k === key ? "visible" : "none");
+    const visible = selectedKeys.has(k);
+    [`${k}-outline`, `${k}-label`].forEach((id) => {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+    });
   });
 }
 
@@ -1396,6 +1385,7 @@ function addPropertyLayers() {
       "circle-stroke-color": "#ffffff"
     }
   });
+  if (!bottomAnchorLayerId) bottomAnchorLayerId = "clusters";
 
   map.addLayer({
     id: "cluster-count",
@@ -1454,55 +1444,38 @@ function setupBasemapToggle() {
   });
 }
 
-function setupCitiesToggle() {
-  const ids = ["cities-toggle-properties", "cities-toggle-development", "cities-toggle-sales"];
-  let visible = false;
-
-  function render() {
-    ids.forEach((id) => document.getElementById(id).classList.toggle("active", visible));
-    setCitiesVisible(visible);
-  }
-
-  ids.forEach((id) => {
-    document.getElementById(id).addEventListener("click", () => {
-      visible = !visible;
-      render();
-    });
-  });
-
-  render();
-}
-
 let msBoundaryProperties, msBoundaryDev, msBoundarySales;
 
 function setupBoundaryToggle() {
-  const options = [
-    { value: "none", label: "None" },
-    { value: "counties", label: "Counties" },
-    { value: "submarkets", label: "Multifamily Submarkets" },
-    { value: "neighborhoods", label: "St. Paul Neighborhoods" }
-  ];
+  const values = Object.entries(BOUNDARY_LAYERS).map(([key, cfg]) => cfg.label);
+  const labelToKey = Object.fromEntries(Object.entries(BOUNDARY_LAYERS).map(([key, cfg]) => [cfg.label, key]));
+  const keyToLabel = Object.fromEntries(Object.entries(BOUNDARY_LAYERS).map(([key, cfg]) => [key, cfg.label]));
 
-  const onPick = (key) => {
-    setBoundaryLayer(key === "none" ? null : key);
-    if (msBoundaryProperties) msBoundaryProperties.setValue(key);
-    if (msBoundaryDev) msBoundaryDev.setValue(key);
-    if (msBoundarySales) msBoundarySales.setValue(key);
+  const onPick = (selectedLabels) => {
+    const selectedKeys = new Set([...selectedLabels].map((label) => labelToKey[label]));
+    setBoundaryLayers(selectedKeys);
+    // Keep all three pages' controls in sync, without re-triggering onChange.
+    if (msBoundaryProperties) msBoundaryProperties.setSelected(new Set(selectedLabels));
+    if (msBoundaryDev) msBoundaryDev.setSelected(new Set(selectedLabels));
+    if (msBoundarySales) msBoundarySales.setSelected(new Set(selectedLabels));
   };
 
-  msBoundaryProperties = buildSingleSelect(document.getElementById("boundary-toggle-properties"), {
-    options,
-    initial: "none",
+  msBoundaryProperties = buildMultiSelect(document.getElementById("boundary-toggle-properties"), {
+    placeholder: "Layers",
+    getValues: () => values,
+    getSelectedInitial: () => new Set(),
     onChange: onPick
   });
-  msBoundaryDev = buildSingleSelect(document.getElementById("boundary-toggle-development"), {
-    options,
-    initial: "none",
+  msBoundaryDev = buildMultiSelect(document.getElementById("boundary-toggle-development"), {
+    placeholder: "Layers",
+    getValues: () => values,
+    getSelectedInitial: () => new Set(),
     onChange: onPick
   });
-  msBoundarySales = buildSingleSelect(document.getElementById("boundary-toggle-sales"), {
-    options,
-    initial: "none",
+  msBoundarySales = buildMultiSelect(document.getElementById("boundary-toggle-sales"), {
+    placeholder: "Layers",
+    getValues: () => values,
+    getSelectedInitial: () => new Set(),
     onChange: onPick
   });
 }
