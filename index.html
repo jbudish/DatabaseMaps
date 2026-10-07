@@ -428,7 +428,7 @@
 </head>
 <body>
 
-<div id="version-badge">v18</div>
+<div id="version-badge">v19</div>
 
 <div id="app">
   <div id="sidebar">
@@ -958,14 +958,19 @@ function normalizeUrl(url) {
 let map, msType, msSubmarket, msCity, msProperty, msOwner, msExclude;
 let mapBounds = null;
 
+// CARTO's anonymous raster CDN (basemaps.cartocdn.com/rastertiles/...) now returns a
+// watermark tile instead of map imagery, so Map and Grey were blank. These Esri
+// services still serve real tiles and allow browser CORS, matching the Aerial layer.
 const RASTER_BASEMAPS = {
   map: {
-    tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"],
-    attribution: "© OpenStreetMap contributors © CARTO"
+    tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"],
+    attribution: "Sources: Esri, HERE, Garmin, USGS, Intermap, INCREMENT P, NRCan, Esri Japan, METI, Esri China (Hong Kong), Esri Korea, Esri (Thailand), NGCC, © OpenStreetMap contributors, and the GIS User Community"
   },
   grey: {
-    tiles: ["https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png"],
-    attribution: "© OpenStreetMap contributors © CARTO"
+    tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"],
+    // Place names live on a separate transparent overlay; the base tiles are streets only.
+    labels: ["https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}"],
+    attribution: "Esri, HERE, Garmin, © OpenStreetMap contributors, and the GIS user community"
   },
   aerial: {
     tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
@@ -1152,27 +1157,46 @@ function initMap() {
 
 // Swaps just the raster basemap layer, always keeping it beneath the property
 // layers if they already exist. Never touches the properties source/layers.
-// Captured once, the first time "clusters" is added — every subsequent basemap
-// switch re-inserts the raster layer at this exact fixed spot, so it always
-// stays at the bottom of the stack. Previously we recalculated "before clusters"
-// on every switch, which pushed the new basemap layer above overlays (city/county/
-// etc. outlines) that had also been inserted "before clusters" earlier — hiding them.
+// "clusters" is the bottom of the dot stack. Boundary overlays are inserted
+// before it, so a basemap re-added "before clusters" would land above those
+// outlines and hide them. Insert before the lowest non-basemap layer instead.
 let bottomAnchorLayerId = null;
 
+const BASEMAP_LAYER_IDS = ["basemap-layer", "basemap-labels"];
+const BASEMAP_SOURCE_IDS = ["basemap-src", "basemap-labels-src"];
+
+function basemapInsertBeforeId() {
+  const layers = (map.getStyle() && map.getStyle().layers) || [];
+  const above = layers.find((layer) => !BASEMAP_LAYER_IDS.includes(layer.id));
+  return above ? above.id : undefined;
+}
+
 function setBasemap(key) {
-  if (map.getLayer("basemap-layer")) map.removeLayer("basemap-layer");
-  if (map.getSource("basemap-src")) map.removeSource("basemap-src");
+  BASEMAP_LAYER_IDS.forEach((id) => {
+    if (map.getLayer(id)) map.removeLayer(id);
+  });
+  BASEMAP_SOURCE_IDS.forEach((id) => {
+    if (map.getSource(id)) map.removeSource(id);
+  });
 
   const cfg = RASTER_BASEMAPS[key];
+  const beforeId = basemapInsertBeforeId();
   map.addSource("basemap-src", {
     type: "raster",
     tiles: cfg.tiles,
     tileSize: 256,
     attribution: cfg.attribution
   });
-
-  const beforeId = bottomAnchorLayerId || (map.getLayer("clusters") ? "clusters" : undefined);
   map.addLayer({ id: "basemap-layer", type: "raster", source: "basemap-src" }, beforeId);
+
+  if (cfg.labels) {
+    map.addSource("basemap-labels-src", {
+      type: "raster",
+      tiles: cfg.labels,
+      tileSize: 256
+    });
+    map.addLayer({ id: "basemap-labels", type: "raster", source: "basemap-labels-src" }, beforeId);
+  }
 }
 
 function toSalesGeoJSON(salesArr) {
